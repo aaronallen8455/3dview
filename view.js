@@ -37,13 +37,15 @@ window.onload = function() {
         this.x = x;
         this.y = y;
         this.z = z;
+        this.shape;
+        this.dist;
         if (shape) {
             if (typeof shape === 'string') {
                 this.shape = Shape.shapes.filter(function(x){return x.name === shape;})[0];
             }else
                 this.shape = shape;
+            shape.addVert(this);
         }
-        shape.addVert(this);
         this.connectedTo = [];
     }
     Vertex.prototype.getCoords = function() {
@@ -72,10 +74,9 @@ window.onload = function() {
         }
         delete this;
     }
-    Vertex.prototype.getVisualCoords = function(vect, cam, yRot) { //vector coords, cam coords, camera Y rotation
-        var canWidth = canvas.getAttribute('width');
-        var canHeight = canvas.getAttribute('height');
-        
+    Vertex.prototype.getVisualCoords = function(vect, cam, camObj) { //vector coords, cam coords, camera Y rotation
+        var yRot = camObj.yRot;
+        var bounds = camObj.visBounds;
         //var vect = camera.getVector();
         var vX = vect[0];
         var vY = vect[1];
@@ -90,7 +91,7 @@ window.onload = function() {
         var cX = cam[0];
         var cY = cam[1];
         var cZ = cam[2];
-        
+        //console.log(vect);
         //find the D constant of the scalar equation for the visual plane.
         var d = vX*vX+vY*vY+vZ*vZ;
         //vX( x + (cX-x)t )+ vY( y + (cY-y)t  )+ vZ( z + (Cz-z)t  ) = d
@@ -103,6 +104,7 @@ window.onload = function() {
         var t = (d - num)/tc;
         
         var coord = [x+t*(cX-x), y+t*(cY-y), z+t*(cZ-z)];
+        //console.log(coord);
         //need to transform into 2d coords relative to 'center' of plane.
         //1)bring the y coord of the intersect up or down to match the vector's Y.
         //2)determine set of conditions to determine which axis (x or z) the
@@ -137,14 +139,23 @@ window.onload = function() {
         //get distance between center of plane and midPoint for X value. get distance btwn coord and midPoint for Y.
         
         //return the coordinates.
-        return [dist(vect, midPoint)*xSign, dist(coord, midPoint)*ySign];
+        //return [dist(vect, midPoint)*xSign, dist(coord, midPoint)*ySign];
+        var xCoord = dist(vect, midPoint)*xSign;
+        var yCoord = dist(coord, midPoint)*ySign;
+        //console.log(xCoord+' '+yCoord);
+        //scale to canvas coordinates
+        var canX = xCoord/bounds[0]*(.5 * canvas.getAttribute('width'));
+        var canY = yCoord/bounds[1]*(.5 * canvas.getAttribute('height'));
+        
+        return [canX, -canY]; //need to flip the Y coord for canvas.
     }
     
     /*to find the point of intersection btwn a line and a plane, we first get the cartesian equation of the plane.
     to do this, we need 3 points that are in the plane, points A(-3,4,1), B(0,2,5), and C(3,6,-2). We find two vectors AB and AC by subtracting
     the second point coords from the first. AB(3,-2,4) AC(6,2,-3). We then find the normal vector by cross multiplying
     these two vectors like this: Y1*Z2-Y2*Z1, Z1*X1-Z2*X1, X1*Y2-X2*Y1 = 6-8, 24+9, 6+12 = -2,33,18
-    The normal vector is the coefficients of the scalar equation : X + Y + Z + D = 0. -2X+33Y+17Z+D=0
+    
+    The normal vector is the coefficients of the scalar equation : X + Y + Z + D = 0. -2X+33Y+18Z+D=0
     To complete the equation, we solve for D by plugging in any of the three known points.
     -2*0+33*2+18*5+D=0
     D= -156
@@ -170,7 +181,7 @@ window.onload = function() {
     */
     
     
-    //define Camera object
+    //define Camera class
     function Camera(X,Y,Z,x,y) {
         this.x = X || 0;
         this.y = Y || 0;
@@ -178,8 +189,10 @@ window.onload = function() {
         this.xRot = x || 0; //look up and down. positive is up
         this.yRot = y || 0; //look left to right. positive is left
         //this.zRot = z || 0; //roll
-        this.fov = 90;
+        this.fov = 120;
         this.vectorLength = 1;
+        this.visBounds = [];
+        this.updateBounds();
     }
     Camera.prototype.distFrom = function(vert) { //calc linear distance to a vertex
         var xDiff = Math.abs(vert.x-this.x); 
@@ -209,6 +222,17 @@ window.onload = function() {
         var vector = [this.x-x, this.y-y, this.z-z];
         return vector;
     }
+    Camera.prototype.updateBounds = function() { //updates the property that holds the size boundaries of the visual plane.
+        var fov = this.fov;
+        var len = this.vectorLength;
+        
+        var width = Math.tan(.5*fov*Math.PI/180)*len;
+        var canWidth = canvas.getAttribute('width');
+        var canHeight = canvas.getAttribute('height');
+        var height = width*(canHeight/canWidth); //use the canvas size to get width to height ratio.
+        //set the visBounds property
+        this.visBounds = [width, height];
+    }
     //utility function for getting distance between two points.
     function dist(a,b) {
         var xDiff = Math.abs(a[0]-b[0]); 
@@ -222,23 +246,131 @@ window.onload = function() {
         var distance = Math.sqrt(Math.pow(side,2)+Math.pow(yDiff,2));
         return distance;
     }
+    function draw(camera, canvas) {
+        canvas.setAttribute('width', canvas.getAttribute('width')); //clear the canvas
+        var ctx = canvas.getContext('2d');
+        ctx.translate(canvas.getAttribute('width')/2,canvas.getAttribute('height')/2);
+        ctx.fillStyle = '#FFFFFF';
+        var vect = camera.getVector();
+        var camCoords = camera.getCoords();
+        var verts = [];
+        for (var i = 0; i<Shape.shapes.length; i++) {
+            Shape.shapes[i].vertices.forEach(function(x,i,a){
+                a[i].dist = camera.distFrom(a[i]);
+                verts.push(a[i]);
+            });
+            //Shape.shapes[i].vertices.sort(function(a,b){return a.dist-b.dist;});
+        }
+        verts.sort(function(a,b){return a.dist-b.dist;});
+        for (var i= 0; i<verts.length; i++) {
+            var coords = verts[i].getVisualCoords(vect, camCoords, camera);
+            ctx.fillRect(coords[0]-1,coords[1]-1,3,3);
+        }
+    }
+    
+    var camMove = (function() {
+        var map = {
+            38: false, //up arrow - move forward
+            40: false, //down arrow - move back
+            37: false, //left arrow - move left
+            39: false, //right arrow - move right
+            81: false, //Q - move up
+            69: false, //E - move down
+            87: false, //W - look up
+            65: false, //A - look left
+            83: false, //S - look down
+            68: false //D - look right
+        }
+        var acting = false;
+        var tStep = .25;
+        var rStep = .5;
+        
+        function action() {
+            if (acting) {
+                applyTransforms();
+                draw(camera, canvas);
+                window.requestAnimationFrame(action);
+            }
+        }
+        
+        function applyTransforms() {
+            if (map[38]) {
+                camera.z -= tStep;
+            }
+            if (map[40]) {
+                camera.z += tStep;
+            }
+            if (map[37]) {
+                camera.x -= tStep;
+            }
+            if (map[39]) {
+                camera.x += tStep;
+            }
+            if (map[81]) {
+                camera.y += tStep;
+            }
+            if (map[69]) {
+                camera.y -= tStep;
+            }
+            if (map[87]) {
+                camera.xRot += rStep;
+            }
+            if (map[65]) {
+                camera.yRot += rStep;
+            }
+            if (map[83]) {
+                camera.xRot -= rStep;
+            }
+            if (map[68]) {
+                camera.yRot -= rStep;
+            }
+        }
+        
+        function getPressed() {
+            //var pressed = [];
+            for (var i in map) {
+                if (!map.hasOwnProperty(i))
+                    continue;
+                if (map[i])
+                    return true;//pressed.push(i);
+            }
+            return false;
+        }
+        return [function(e) {
+            if (map.hasOwnProperty(e.keyCode)) {
+                map[e.keyCode] = true;
+                if (acting) return;
+                acting = true;
+                action();
+            }
+            
+        }, function(e) {
+            if (map.hasOwnProperty(e.keyCode)) {
+                map[e.keyCode] = false;
+                var pressed = getPressed();
+                if (getPressed() === false)
+                    acting = false;
+            }
+        }];
+    })();
+    document.addEventListener('keydown', camMove[0]);
+    document.addEventListener('keyup', camMove[1]);
+    
     //get the canvas
     var canvas = document.getElementById('canvas');
-    var ctx = canvas.getContext('2d');
+    //var ctx = canvas.getContext('2d');
     
     var camera = new Camera(0,0,0,20,20);
     var shape = new Shape('test');
-    new Vertex(10,-8,-10,shape);
-    new Vertex(-10,-10,-10,shape);
+    new Vertex(10,-10,-8,shape);
+    //new Vertex(-10,-10,-10,shape);
     new Vertex(10,-10,-20,shape);
-    new Vertex(-10,-10,-20,shape);
+    //new Vertex(-10,-10,-20,shape);
     new Vertex(10,10,-10,shape);
-    new Vertex(-10,10,-10,shape);
+    //new Vertex(-10,10,-10,shape);
     new Vertex(10,10,-20,shape);
-    new Vertex(-10,10,-20,shape);
-    for (var i =0; i<shape.vertices.length; i++) {
-        console.log(shape.vertices[i].getVisualCoords(camera.getVector(), camera.getCoords(), camera.yRot));
-    }
-    console.log(camera.getVector());
+    //new Vertex(-10,10,-20,shape);
+    //ctx.translate(canvas.getAttribute('width')/2,canvas.getAttribute('height')/2);
+    draw(camera, canvas);
     //console.log(camera.distFrom(shape.vertices[0]));
 }
