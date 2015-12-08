@@ -93,12 +93,17 @@ window.onload = function() {
         var cZ = cam[2];
         //console.log(vect);
         //find the D constant of the scalar equation for the visual plane.
-        var d = vX*vX+vY*vY+vZ*vZ;
+        var d = vX*(vX+camObj.x)+vY*(vY+camObj.y)+vZ*(vZ+camObj.z);
+        //console.log(cZ+cZ)
         //vX( x + (cX-x)t )+ vY( y + (cY-y)t  )+ vZ( z + (Cz-z)t  ) = d
         //substitute into plane equation and solve for t.
+        //<x0,y0,z0>+t<x1-x0,y1-y0,z1-z0>
+        //x0+tx1-tx0
+        
         var tcX = (cX-x)*vX;
         var tcY = (cY-y)*vY;
         var tcZ = (cZ-z)*vZ;
+        
         var tc = tcX + tcY + tcZ; //the coeffiecient of 't'
         var num = x*vX+y*vY+z*vZ;
         var t = (d - num)/tc;
@@ -112,19 +117,19 @@ window.onload = function() {
         //3)get coords of this second intersection.
         //4)get distance from vector to mid point and first intersection to mid-point.
         var oX = coord[0];
-        var oY = vY;
+        var oY = vY+camObj.y;
         var oZ = coord[2];
         
         var ySign = oY<coord[1]?1:-1; //get the sign of the Y coordinate.
         var xSign;
         if (yRot >= -45 && yRot <= 45) { //determine the sign of the X coordinate.
-            xSign = coord[0]>vect[0]?1:-1;
+            xSign = coord[0]>vect[0]+camObj.x?1:-1;
         }else if (yRot > 45 && yRot < 135) {
-            xSign = coord[2]>vect[2]?1:-1;
+            xSign = coord[2]>vect[2]+camObj.z?1:-1;
         }else if ((yRot >= 135 && yRot <= 180)||(yRot <= -135 && yRot >= -180)) {
-            xSign = coord[0]>vect[0]?-1:1;
+            xSign = coord[0]>vect[0]+camObj.x?-1:1;
         }else if (yRot < -45 && yRot > -135) {
-            xSign = coord[2]>vect[2]?-1:1;
+            xSign = coord[2]>vect[2]+camObj.z?1:-1;
         }
         //we need the line vector that reflects the Y rotation but not the X to find the midpoint- from which we can find the X and Y coords.
         // <oX,oY,oZ>+t<vX,0,vZ> -> the 'X-rotation only' normal vector.
@@ -140,7 +145,7 @@ window.onload = function() {
         
         //return the coordinates.
         //return [dist(vect, midPoint)*xSign, dist(coord, midPoint)*ySign];
-        var xCoord = dist(vect, midPoint)*xSign;
+        var xCoord = dist([vX+camObj.x, vY+camObj.y, vZ+camObj.z], midPoint)*xSign;
         var yCoord = dist(coord, midPoint)*ySign;
         //console.log(xCoord+' '+yCoord);
         //scale to canvas coordinates
@@ -209,6 +214,23 @@ window.onload = function() {
     Camera.prototype.getCoords = function() {
         return [this.x, this.y, this.z];
     }
+    Camera.prototype.setRot = function(axis, deg) {
+        if (axis === 'y') {
+            this.yRot += deg;
+            if (this.yRot > 180) {
+                this.yRot -= 360;
+            }else if (this.yRot < -180) {
+                this.yRot += 360;
+            }
+        }else{
+            this.xRot += deg;
+            if (this.xRot > 180) {
+                this.xRot -= 360;
+            }else if (this.xRot < -180) {
+                this.xRot += 360;
+            }
+        }
+    }
     Camera.prototype.getRot = function() {
         return [this.xRot, this.yRot, this.zRot];
     }
@@ -219,7 +241,8 @@ window.onload = function() {
         var n = Math.sqrt(h*h-y*y);
         var x = Math.sin(this.yRot*(Math.PI/180))*n;
         var z = Math.cos(this.yRot*(Math.PI/180))*n;
-        var vector = [this.x-x, this.y-y, this.z-z];
+        //console.log(x+' '+y+' '+z);
+        var vector = [0-x, 0-y, 0-z];
         return vector;
     }
     Camera.prototype.updateBounds = function() { //updates the property that holds the size boundaries of the visual plane.
@@ -313,16 +336,20 @@ window.onload = function() {
                 camera.y -= tStep;
             }
             if (map[87]) {
-                camera.xRot += rStep;
+                //camera.xRot += rStep;
+                camera.setRot('x',rStep);
             }
             if (map[65]) {
-                camera.yRot += rStep;
+                //camera.yRot += rStep;
+                camera.setRot('y',rStep);
             }
             if (map[83]) {
-                camera.xRot -= rStep;
+                //camera.xRot -= rStep;
+                camera.setRot('x',-rStep);
             }
             if (map[68]) {
-                camera.yRot -= rStep;
+                //camera.yRot -= rStep;
+                camera.setRot('y',-rStep);
             }
         }
         
@@ -360,15 +387,16 @@ window.onload = function() {
     var canvas = document.getElementById('canvas');
     //var ctx = canvas.getContext('2d');
     
-    var camera = new Camera(0,0,0,20,20);
+    var camera = new Camera(0,0,0,0,0);
     var shape = new Shape('test');
-    new Vertex(10,-10,-8,shape);
+    new Vertex(10,-10,-10,shape);
     //new Vertex(-10,-10,-10,shape);
     new Vertex(10,-10,-20,shape);
     //new Vertex(-10,-10,-20,shape);
     new Vertex(10,10,-10,shape);
     //new Vertex(-10,10,-10,shape);
     new Vertex(10,10,-20,shape);
+    //new Vertex(0,0,-1,shape);
     //new Vertex(-10,10,-20,shape);
     //ctx.translate(canvas.getAttribute('width')/2,canvas.getAttribute('height')/2);
     draw(camera, canvas);
