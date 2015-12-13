@@ -31,11 +31,58 @@ window.onload = function() {
         }else
             this.name = name;
     }
+    Shape.prototype.getCenter = function() {
+        var x,y,z;
+        x = this.vertices.reduce(function(a,b){return a+b.x;},0);
+        y = this.vertices.reduce(function(a,b){return a+b.y;},0);
+        z = this.vertices.reduce(function(a,b){return a+b.z;},0);
+        x /= this.vertices.length;
+        y /= this.vertices.length;
+        z /= this.vertices.length;
+        return [x,y,z];
+    }
+    Shape.rotate = function(shape, axis, deg, center) {
+        if (!center)
+            center = shape.getCenter();
+        var rad = Math.PI/180;
+        for (var i=0; i<shape.vertices.length; i++) {
+            var point = shape.vertices[i].getCoords();
+            var xDiff,yDiff,zDiff,xAngle,yAngle,zAngle;
+            xDiff = point[0] - center[0];
+            yDiff = point[1] - center[1];
+            zDiff = point[2] - center[2];
+            
+            var x,y,z;
+            x=y=z=0;
+            //determine how much the coordinates are changed by the rotation
+            switch(axis) {
+                case 'x' :
+                    xAngle = Math.atan(yDiff/zDiff);
+                    y += Math.sin(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - yDiff;
+                    z += Math.cos(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - zDiff;
+                    break;
+                case 'y' :
+                    yAngle = Math.atan(zDiff/xDiff);
+                    x += Math.cos(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - xDiff;
+                    z += Math.sin(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - zDiff;
+                    
+                    break;
+                case 'z' :
+                    zAngle = Math.atan(yDiff/xDiff);
+                    x += Math.sin((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) - xDiff;
+                    y -= Math.cos((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) + yDiff;
+            }
+            shape.vertices[i].x += x;
+            shape.vertices[i].y += y;
+            shape.vertices[i].z += z;
+        }
+        return shape;
+    }
     Shape.createPrimitive = function(type, name) { //create a primative of 'type'
         var shape = new Shape(name||type);
         function rotOffsets(center, point, rotX, rotY, rotZ) { //determine positional offsets due to object rotation
             //determine angles for a line going from center to point
-            
+            var xDiff,yDiff,zDiff,xAngle,yAngle,zAngle;
             xDiff = point[0] - center[0];
             yDiff = point[1] - center[1];
             zDiff = point[2] - center[2];
@@ -81,6 +128,8 @@ window.onload = function() {
                             x = width/2*w + center[0];
                             y = height/2*h + center[1];
                             z = depth/2*d + center[2];
+                            new Vertex(x,y,z,shape);
+                            /*
                             offset = rotOffsets(center,[x,y,z],0,0,rotZ+90);
                             x += offset[0];
                             y += offset[1];
@@ -92,23 +141,75 @@ window.onload = function() {
                             offset = rotOffsets(center,[x,y,z],0,rotY,0+90);
                             x += offset[0];
                             y += offset[1];
-                            z += offset[2];
-                            verts.push([x,y,z]);
+                            z += offset[2];*/
+                            //verts.push([x,y,z]);
                         }
                 //create the vertices.
-                verts.forEach(function(x,i,a) {
+                /*verts.forEach(function(x,i,a) {
                     a[i] = new Vertex(x[0],x[1],x[2],shape);
-                });
+                });*/
+                //perform rotations
+                if (rotZ)
+                    Shape.rotate(shape, 'z', rotZ, center);
+                if (rotX)
+                    Shape.rotate(shape, 'x', rotX, center);
+                if (rotY)
+                    Shape.rotate(shape, 'y', rotY, center);
+                
                 //make the connections
+                verts = shape.vertices;
                 verts[0].connectTo(verts[1].connectTo(
                     verts[3].connectTo(verts[2].connectTo(
                         verts[0]).connectTo(verts[6].connectTo(verts[4]))).connectTo(
                         verts[7].connectTo(verts[6]))).connectTo(verts[5].connectTo(verts[7]))).connectTo(
                     verts[4].connectTo(verts[5])
                 );
+                break;
                 
             case 'cone':
+                var radius = arguments[2] || 5;
+                var height = arguments[3] || 5;
+                var faces = arguments[4] || 10;
+                var center = arguments[5] || [0,0,0];
+                var rotX = arguments[6] || 0;
+                var rotY = arguments[7] || 0;
+                var rotZ = arguments[8] || 0;
+                var sub = arguments[9] || 0;
+                
+                var pin = new Vertex(center[0],center[1]+height/2,center[2],shape); //the pinacle
+                var angle = 2*Math.PI/faces;
+                
+                for(var s=1; s<=sub+1; s++) {
+                    for(var i=0; i<faces; i++) { //create the base
+                        var x,z;
+                        x = Math.sin(angle*i)*(1/(sub+1)*(s)*radius) + center[0];
+                        z = Math.cos(angle*i)*(1/(sub+1)*(s)*radius) + center[2];
+                        var base = new Vertex(x,(center[1] + height/(sub+1)*(sub+1-s)-height/2),z,shape); //add vertex
+                        if (s === 1) {
+                            base.connectTo(pin);
+                        }
+                        if (sub && (s>1)) {
+                            //base.connectTo(shape.vertices[i+(faces*(s-1)>0?(s-1):0)-1]);
+                            base.connectTo(shape.vertices[shape.vertices.length-faces-1]);
+                            //base.connectTo(shape.vertices[shape.vertices.length-faces-1]);
+                        }
+                        if (i>0) {
+                            base.connectTo(shape.vertices[i+(faces*(s-1))]);
+                        }
+                    }
+                    base.connectTo(shape.vertices[shape.vertices.length-faces]);
+                }
+                
+                
+                //perform rotations
+                if (rotX)
+                    Shape.rotate(shape,'x',rotX,center);
+                if (rotY)
+                    Shape.rotate(shape,'y',rotY,center);
+                if (rotZ)
+                    Shape.rotate(shape,'z',rotZ,center);
                 break;
+                
             case 'cylinder':
                 var width = arguments[2] || 5;
                 var height = arguments[3] || 5;
@@ -324,12 +425,13 @@ window.onload = function() {
         var n;
         switch (axis) {
             case 'x' : //move left and right. Positive is right.
-                xRot = this.xRot * rad;
+                xRot = 0; //x rotation is irrelevant.
                 yRot = -this.yRot * rad;
-                y = Math.sin(xRot)*-dist;
-                n = Math.cos(xRot)*dist;
+                //y = Math.sin(xRot)*-dist;
+                n = dist;
                 x = Math.cos(yRot)*n;
                 z = Math.sin(yRot)*n;
+
                 y = 0; //theres no y component to this translation.
                 break;
             case 'y' : //up and down. Positive is up.
@@ -577,7 +679,6 @@ window.onload = function() {
     fovInput.value = camera.fov;
     fovInput.addEventListener('change', changeFov);
     function changeFov() {
-        console.log('test');
         camera.fov = fovInput.value;
         camera.updateBounds();
         draw(camera, canvas);
@@ -600,8 +701,9 @@ window.onload = function() {
     ))
     );
     */
-    var cube = Shape.createPrimitive('cube','cube',8,5,5,[0,0,0],0,30,0);
+    var cube = Shape.createPrimitive('cube','cube',8,5,5,[0,0,0],30,0,10);
     Shape.createPrimitive('cube','cube',8,5,5,[10,0,0],45,30,20);
+    Shape.createPrimitive('cone','cone',5,10,20,[-10,0,0],0,0,90,20);
     //cube.vertices[0].x += 5;
     draw(camera, canvas); //draw initial frame.
 }
