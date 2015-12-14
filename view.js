@@ -57,20 +57,35 @@ window.onload = function() {
             //determine how much the coordinates are changed by the rotation
             switch(axis) {
                 case 'x' :
-                    xAngle = Math.atan(yDiff/zDiff);
-                    y += Math.sin(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - yDiff;
-                    z += Math.cos(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - zDiff;
+                    xAngle = Math.atan(yDiff/zDiff) || 0; //if there is no zDiff, we assign 0. Otherwise, we would get NaN.
+                    if (xAngle != 0) {
+                        y += Math.sin(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - yDiff;
+                        z += Math.cos(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - zDiff;
+                    }else{ // if the angle is 0, we would end up dividing by 0 getting NaN. need a special case.
+                        y += Math.sin(deg*rad)* zDiff - yDiff;
+                        z += Math.cos(deg*rad)* zDiff - zDiff;
+                    }
                     break;
                 case 'y' :
-                    yAngle = Math.atan(zDiff/xDiff);
-                    x += Math.cos(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - xDiff;
-                    z += Math.sin(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - zDiff;
+                    yAngle = Math.atan(zDiff/xDiff) || 0;
+                    if (yAngle != 0) {
+                        x += Math.cos(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - xDiff;
+                        z += Math.sin(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - zDiff;
+                    }else{
+                        x += Math.sin(deg*rad) * zDiff - xDiff;
+                        z += Math.cos(deg*rad) * zDiff - zDiff;
+                    }
                     
                     break;
                 case 'z' :
-                    zAngle = Math.atan(yDiff/xDiff);
-                    x += Math.sin((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) - xDiff;
-                    y -= Math.cos((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) + yDiff;
+                    zAngle = Math.atan(yDiff/xDiff) || 0;
+                    if (zAngle != 0) {
+                        x += Math.sin((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) - xDiff;
+                        y -= Math.cos((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) + yDiff;
+                    }else{
+                        x += Math.cos((deg)*rad)* xDiff - xDiff;
+                        y += Math.sin((deg)*rad)* xDiff - yDiff;
+                    }
             }
             shape.vertices[i].x += x;
             shape.vertices[i].y += y;
@@ -129,25 +144,8 @@ window.onload = function() {
                             y = height/2*h + center[1];
                             z = depth/2*d + center[2];
                             new Vertex(x,y,z,shape);
-                            /*
-                            offset = rotOffsets(center,[x,y,z],0,0,rotZ+90);
-                            x += offset[0];
-                            y += offset[1];
-                            z += offset[2];
-                            offset = rotOffsets(center,[x,y,z],rotX,0,0+90);
-                            x += offset[0];
-                            y += offset[1];
-                            z += offset[2];
-                            offset = rotOffsets(center,[x,y,z],0,rotY,0+90);
-                            x += offset[0];
-                            y += offset[1];
-                            z += offset[2];*/
-                            //verts.push([x,y,z]);
                         }
-                //create the vertices.
-                /*verts.forEach(function(x,i,a) {
-                    a[i] = new Vertex(x[0],x[1],x[2],shape);
-                });*/
+                
                 //perform rotations
                 if (rotZ)
                     Shape.rotate(shape, 'z', rotZ, center);
@@ -200,7 +198,6 @@ window.onload = function() {
                     base.connectTo(shape.vertices[shape.vertices.length-faces]);
                 }
                 
-                
                 //perform rotations
                 if (rotX)
                     Shape.rotate(shape,'x',rotX,center);
@@ -211,25 +208,120 @@ window.onload = function() {
                 break;
                 
             case 'cylinder':
-                var width = arguments[2] || 5;
+                var radius = arguments[2] || 5;
                 var height = arguments[3] || 5;
-                var depth = arguments[4] || 5;
-                var sides = arguments[5] || 4;
-                var x = arguments[6] || 0;
-                var y = arguments[7] || 0;
-                var z = arguments[8] || 0;
-                var rotX = arguments[9] || 0;
-                var rotY = arguments[10] || 0;
-                var rotZ = arguments[11] || 0;
-                var sub = arguments[12] || 0;
+                var faces = arguments[4] || 10;
+                var center = arguments[5] || [0,0,0];
+                var rotX = arguments[6] || 0;
+                var rotY = arguments[7] || 0;
+                var rotZ = arguments[8] || 0;
+                var sub = arguments[9] || 0;
                 
-                var angle = 2*Math.PI/sides;
+                var angle = 2*Math.PI/faces;
+                
+                for(var s=1; s<=sub+2; s++) {
+                    for(var i=0; i<faces; i++) {
+                        var x,z;
+                        x = Math.sin(angle*i)*radius + center[0];
+                        z = Math.cos(angle*i)*radius + center[2];
+                        var base = new Vertex(x,(center[1] + height/(sub+1)*(sub+2-s)-height/2),z,shape); //add vertex
+                        if (s>1) {
+                            base.connectTo(shape.vertices[shape.vertices.length-faces-1]);
+                        }
+                        if (i>0) {
+                            base.connectTo(shape.vertices[i-1+(s-1)*faces]);
+                        }
+                    }
+                    base.connectTo(shape.vertices[shape.vertices.length-faces]);
+                }
+                //perform rotations
+                if (rotX)
+                    Shape.rotate(shape,'x',rotX,center);
+                if (rotY)
+                    Shape.rotate(shape,'y',rotY,center);
+                if (rotZ)
+                    Shape.rotate(shape,'z',rotZ,center);
                 
                 break;
+                
             case 'sphere':
+                var radius = arguments[2] || 5;
+                var center = arguments[3] || [0,0,0];
+                var faces = arguments[4] || 10;
+                var rotX = arguments[5] || 0;
+                var rotY = arguments[6] || 0;
+                var rotZ = arguments[7] || 0;
+                var sub = arguments[8] || 10;
+                
+                var top = new Vertex(center[0],radius+center[1],center[2], shape);
+                var bottom = new Vertex(center[0],-radius+center[1],center[2], shape);
+                var angle = 2*Math.PI/faces;
+                var a = Math.PI/(sub+1); //the angle for each sub level.
+                var x,y,z,r,v
+                for(var s=1; s<sub+1; s++) {
+                    y = Math.cos(a*s)*radius + center[1]; //get the y value for each layer
+                    r = Math.sin(a*s)*radius; //get the radius for each layer
+                    for (var i=0; i<faces; i++) {
+                        x = Math.sin(angle*i)*r + center[0];
+                        z = Math.cos(angle*i)*r + center[2];
+                        v = new Vertex(x,y,z, shape);
+                        if (s>1) {
+                            v.connectTo(shape.vertices[shape.vertices.length-faces-1]);
+                        }
+                        if (i>0) {
+                            v.connectTo(shape.vertices[i+1+(s-1)*faces]);
+                        }
+                        if (s === 1) {
+                            v.connectTo(top);
+                        }
+                        if (s === sub) {
+                            v.connectTo(bottom);
+                        }
+                    }
+                    v.connectTo(shape.vertices[shape.vertices.length-faces]);
+                }
+                //perform rotations
+                if (rotX)
+                    Shape.rotate(shape,'x',rotX,center);
+                if (rotY)
+                    Shape.rotate(shape,'y',rotY,center);
+                if (rotZ)
+                    Shape.rotate(shape,'z',rotZ,center);
+                
                 break;
             case 'plane':
+                var width = arguments[2] || 10;
+                var depth = arguments[3] || 10;
+                var center = arguments[4] || [0,0,0];
+                var rotX = arguments[5] || 0;
+                var rotY = arguments[6] || 0;
+                var rotZ = arguments[7] || 0;
+                var subX = arguments[8] || 0;
+                var subZ = arguments[9] || 0;
                 
+                var segX = width/(subX+1); //length of X segments
+                var segZ = depth/(subZ+1);
+                var x,z,v;
+                for (var i=0; i<=subX+1; i++) {
+                    x = -width/2 + i*segX;
+                    for (var t=0; t<=subZ+1; t++) {
+                        z = -depth/2 + t*segZ;
+                        v = new Vertex(x+center[0],center[1],z+center[2], shape);
+                        if (t>0) {
+                            v.connectTo(shape.vertices[t-1+(subZ+2)*i]);
+                        }
+                        if (i>0) {
+                            v.connectTo(shape.vertices[t+(subZ+2)*(i-1)]);
+                        }
+                    }
+                }
+                //perform rotations
+                if (rotX)
+                    Shape.rotate(shape,'x',rotX,center);
+                if (rotY)
+                    Shape.rotate(shape,'y',rotY,center);
+                if (rotZ)
+                    Shape.rotate(shape,'z',rotZ,center);
         }
         return shape;
     }
@@ -315,8 +407,11 @@ window.onload = function() {
         var t = (d - num)/tc;
         
         var coord = [x+t*(cX-x), y+t*(cY-y), z+t*(cZ-z)];
-        if (dist(vert, cam) < dist(vert, coord))
+        
+        if (dist(vert, cam) < dist(vert, coord)) { // vert is behind camera
+            this.visCoords = null;
             return null;
+        }
         
         //Now we need to transform these coords into 2d coords relative to 'center' of the visual plane (canvas).
         //1)bring the y coord of the intersect up or down to match the vector's Y.
@@ -533,9 +628,11 @@ window.onload = function() {
             Shape.shapes[i].vertices.forEach(function(x,i,a){
                 a[i].dist = camera.distFrom(a[i]);
                 a[i].setVisualCoords(vect, camCoords, camera);
-                verts.push(a[i]);
+                if (a[i].visCoords !== null) //skip verts that are behind the camera
+                    verts.push(a[i]);
             });
         }
+        
         verts.sort(function(a,b){return b.dist-a.dist;}); //sort by distance from camera.
         verts.forEach(drawVert);
             
@@ -543,16 +640,12 @@ window.onload = function() {
             if (vert === null) return;
             var index = verts.indexOf(vert);
             
-            if (line === true) {
-                ctx.lineTo(coords[0],coords[1]);
-                ctx.closePath();
-                ctx.stroke();
-            }
+            
             
             if (index === -1) return;
             
             var coords = vert.visCoords;
-            if (coords === null) return; //don't draw if vert is behind the camera.
+            //if (coords === null) return; //skip if vert is behind the camera.
             
             ctx.fillRect(coords[0]-1,coords[1]-1,3,3);
             
@@ -561,11 +654,11 @@ window.onload = function() {
                 ctx.beginPath();
                 ctx.moveTo(coords[0],coords[1]);
                 var to = vert.connectedTo[t].visCoords;
+                if (to === null) return;
                 ctx.lineTo(to[0],to[1]);
                 ctx.closePath();
                 ctx.stroke();
                 verts[index] = null;
-                //drawVert(vert.connectedTo[t], true);
             }
         }
     }
@@ -683,27 +776,13 @@ window.onload = function() {
         camera.updateBounds();
         draw(camera, canvas);
     }
-    /*
-    var shape = new Shape('cube');
     
-    //Define a cube
-    new Vertex(10,-10,-10,shape);
-    new Vertex(-10,-10,-10,shape);
-    new Vertex(10,-10,-30,shape);
-    new Vertex(-10,-10,-30,shape).connectTo(shape.vertices[2].connectTo(shape.vertices[0])).connectTo(shape.vertices[1].connectTo(shape.vertices[0]));
-    new Vertex(10,10,-10,shape);
-    new Vertex(-10,10,-10,shape);
-    new Vertex(10,10,-30,shape);
-    new Vertex(-10,10,-30,shape).connectTo(shape.vertices[3]).connectTo(shape.vertices[6].connectTo(
-    shape.vertices[2]).connectTo(shape.vertices[4].connectTo(
-        shape.vertices[0]).connectTo(shape.vertices[5].connectTo(
-        shape.vertices[1]).connectTo(shape.vertices[7])
-    ))
-    );
-    */
-    var cube = Shape.createPrimitive('cube','cube',8,5,5,[0,0,0],30,0,10);
+    //var cube = Shape.createPrimitive('cube','cube',8,5,5,[0,0,0],30,0,10);
     Shape.createPrimitive('cube','cube',8,5,5,[10,0,0],45,30,20);
     Shape.createPrimitive('cone','cone',5,10,20,[-10,0,0],0,0,90,20);
+    Shape.createPrimitive('cylinder','cylinder',5,10,20,[-20,0,0],0,0,0,1);
+    Shape.createPrimitive('sphere','sphere',5,[-20,0,0],10,0,45,0);
+    Shape.createPrimitive('plane','plane',11,11,[0,0,0],0,0,0,10,10);
     //cube.vertices[0].x += 5;
     draw(camera, canvas); //draw initial frame.
 }
