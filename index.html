@@ -6,7 +6,17 @@
     <body>
     <canvas height="540" width="960" id="canvas" style="background-color:black"></canvas>
         <br /><br/>
-        FOV: <input type="text" id="fov">
+        Create Primitive:
+        <select id="createPrimSel">
+            <option value="cube">Cube</option>
+            <option value="cone">Cone</option>
+            <option value="cylinder">Cylinder</option>
+            <option value="sphere">Sphere</option>
+            <option value="plane">Plane</option>
+        </select>
+        <button id="createPrimButton">Create</button>
+        <br /><br />
+        Camera FOV: <input type="text" id="fov">
         <br /><br />
         Camera Controls:<br />
         Up Arrow - move forward<br />
@@ -19,5 +29,6 @@
         S - look down <br />
         A - look left<br />
         D - look right
+        <input type="hidden" value="" id="createPrimHid">
     </body>
 </html>
