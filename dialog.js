@@ -10,7 +10,7 @@ window.onload = function() {
     radius.value = 5;
     radius.id = 'radius';
     var radiusSpan = document.createElement('span');
-    radiusSpan.innerText = 'Radius: ';
+    radiusSpan.innerHTML = 'Radius: ';
     radiusSpan.appendChild(radius);
     
     var width = document.createElement('input');
@@ -18,7 +18,7 @@ window.onload = function() {
     width.value = 10;
     width.id = 'width';
     var widthSpan = document.createElement('span');
-    widthSpan.innerText = 'Width: ';
+    widthSpan.innerHTML = 'Width: ';
     widthSpan.appendChild(width);
     
     var height = document.createElement('input');
@@ -26,7 +26,7 @@ window.onload = function() {
     height.value = 10;
     height.id = 'height';
     var heightSpan = document.createElement('span');
-    heightSpan.innerText = 'Height: ';
+    heightSpan.innerHTML = 'Height: ';
     heightSpan.appendChild(height);
     
     var depth = document.createElement('input');
@@ -34,7 +34,7 @@ window.onload = function() {
     depth.value = 10;
     depth.id = 'depth';
     var depthSpan = document.createElement('span');
-    depthSpan.innerText = 'Depth: ';
+    depthSpan.innerHTML = 'Depth: ';
     depthSpan.appendChild(depth);
     
     var x = document.createElement('input');
@@ -50,7 +50,7 @@ window.onload = function() {
     z.value = 0;
     z.id = 'z';
     var centerSpan = document.createElement('span');
-    centerSpan.innerText = 'Center Coordinates (x,y,z): ';
+    centerSpan.innerHTML = 'Center Coordinates (x,y,z): ';
     centerSpan.appendChild(x);
     centerSpan.appendChild(y);
     centerSpan.appendChild(z);
@@ -68,7 +68,7 @@ window.onload = function() {
     rotZ.value = 0;
     rotZ.id = 'rotZ';
     var rotSpan = document.createElement('span');
-    rotSpan.innerText = 'Rotation (x,y,z): ';
+    rotSpan.innerHTML = 'Rotation (x,y,z): ';
     rotSpan.appendChild(rotX);
     rotSpan.appendChild(rotY);
     rotSpan.appendChild(rotZ);
@@ -78,7 +78,7 @@ window.onload = function() {
     faces.value = 20;
     faces.id = 'faces';
     var facesSpan = document.createElement('span');
-    facesSpan.innerText = 'Number of Radial Divisions: ';
+    facesSpan.innerHTML = 'Number of Radial Divisions: ';
     facesSpan.appendChild(faces);
     
     var subX = document.createElement('input');
@@ -86,15 +86,15 @@ window.onload = function() {
     subX.value = 0;
     subX.id = 'subX';
     var subXSpan = document.createElement('span');
-    subXSpan.innerText = 'Number of Divisions Along X Axis: ';
+    subXSpan.innerHTML = 'Number of Divisions Along X Axis: ';
     subXSpan.appendChild(subX);
     
     var subY = document.createElement('input');
     subY.type = 'text';
-    subY.value = 0;
+    subY.value = (type === 'sphere')?10:0;
     subY.id = 'subY';
     var subYSpan = document.createElement('span');
-    subYSpan.innerText = 'Number of Divisions Along Y Axis: ';
+    subYSpan.innerHTML = 'Number of Divisions Along Y Axis: ';
     subYSpan.appendChild(subY);
     
     var subZ = document.createElement('input');
@@ -102,7 +102,7 @@ window.onload = function() {
     subZ.value = 0;
     subZ.id = 'subZ';
     var subZSpan = document.createElement('span');
-    subZSpan.innerText = 'Number of Divisions Along Z Axis: ';
+    subZSpan.innerHTML = 'Number of Divisions Along Z Axis: ';
     subZSpan.appendChild(subZ);
     //check list of params
     var param = {

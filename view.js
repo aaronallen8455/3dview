@@ -41,6 +41,17 @@ window.onload = function() {
         z /= this.vertices.length;
         return [x,y,z];
     }
+    Shape.prototype.getVertAtCoord = function(x,y,z) { //get the vertex at a given point
+        var result = this.vertices.find(function(v){
+            var coords = v.getCoords()
+            if (coords[0].toFixed(5) == x.toFixed(5) && coords[1].toFixed(5) == y.toFixed(5) && coords[2].toFixed(5) == z.toFixed(5)) {
+                return true;
+            }
+            return false;
+        });
+        if (result == undefined) console.log('error'+[x,y,z]);
+        return result;
+    }
     Shape.rotate = function(shape, axis, deg, center) {
         if (!center)
             center = shape.getCenter();
@@ -113,16 +124,59 @@ window.onload = function() {
                 var subZ = arguments[i++] || 0;
                 var verts = [];
                 
-                var x, y, z, offset;
-                //find the 8 vertices.
-                for (var w =1; w>-2; w-=2)
-                    for (var h=1; h>-2; h-=2)
-                        for (var d=1; d>-2; d-=2) {
-                            x = width/2*w + xC;
-                            y = height/2*h + yC;
-                            z = depth/2*d + zC;
-                            new Vertex(x,y,z,shape);
+                var x, y, z, v, offset;
+                
+                //create left face.
+                x = -width/2;
+                for (var z=-depth/2; z<=depth/2; z+=depth/(subZ+1)) {
+                    for (var y=-height/2; y<=height/2; y+=height/(subY+1)) {
+                        v = new Vertex(x,y,z, shape);
+                        if (y > (-height/2)) {
+                            v.connectTo(shape.vertices[shape.vertices.length-2]);
                         }
+                        if (z > -depth/2) {
+                            v.connectTo(shape.vertices[shape.vertices.length-1 - (subY+2)]);
+                        }
+                    }
+                }
+                //create main body.
+                for (var x=-width/2+width/(subX+1); x<width/2; x+=width/(subX+1)) {
+                    for (var y=-height/2; y<=height/2; y+=height/(subY+1)) {
+                        v = new Vertex(x,y,-depth/2, shape);
+                        v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,-depth/2));
+                        if (y !== -height/2)
+                            v.connectTo(shape.getVertAtCoord(x,y-height/(subY+1),-depth/2));
+                        
+                        if (y === -height/2 || y === height/2) {
+                            for (var z=-depth/2+depth/(subZ+1); z<depth/2; z+=depth/(subZ+1)) {
+                                v = new Vertex(x,y,z, shape);
+                                v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,z));
+                                v.connectTo(shape.vertices[shape.vertices.length-2]);
+                            }
+                        }
+                        v = new Vertex(x,y,depth/2, shape);
+                        v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,depth/2));
+                        if (y !== -height/2)
+                            v.connectTo(shape.getVertAtCoord(x,y-height/(subY+1),depth/2));
+                        if (y === -height/2 || y === height/2)
+                            v.connectTo(shape.getVertAtCoord(x,y,depth/2-depth/(subZ+1)));
+                    }
+                }
+                //create the right side.
+                x = width/2;
+                for (var z=-depth/2; z<=depth/2; z+=depth/(subZ+1)) {
+                    for (var y=-height/2; y<=height/2; y+=height/(subY+1)) {
+                        v = new Vertex(x,y,z, shape);
+                        if (y > (-height/2)) {
+                            v.connectTo(shape.vertices[shape.vertices.length-2]);
+                        }
+                        if (z > -depth/2) {
+                            v.connectTo(shape.vertices[shape.vertices.length-1 - (subY+2)]);
+                        }
+                        if (y === -height/2 || y === height/2 || z === -depth/2 || z === depth/2)
+                            v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,z));
+                    }
+                }
                 
                 //perform rotations
                 if (rotZ)
@@ -132,14 +186,6 @@ window.onload = function() {
                 if (rotY)
                     Shape.rotate(shape, 'y', rotY, [xC,yC,zC]);
                 
-                //make the connections
-                verts = shape.vertices;
-                verts[0].connectTo(verts[1].connectTo(
-                    verts[3].connectTo(verts[2].connectTo(
-                        verts[0]).connectTo(verts[6].connectTo(verts[4]))).connectTo(
-                        verts[7].connectTo(verts[6]))).connectTo(verts[5].connectTo(verts[7]))).connectTo(
-                    verts[4].connectTo(verts[5])
-                );
                 break;
                 
             case 'cone':
@@ -616,14 +662,14 @@ window.onload = function() {
         var verts = [];
         for (var i = 0; i<Shape.shapes.length; i++) {
             Shape.shapes[i].vertices.forEach(function(x,i,a){
-                a[i].dist = camera.distFrom(a[i]);
+                //a[i].dist = camera.distFrom(a[i]);
                 a[i].setVisualCoords(vect, camCoords, camera);
                 if (a[i].visCoords !== null) //skip verts that are behind the camera
                     verts.push(a[i]);
             });
         }
         
-        verts.sort(function(a,b){return b.dist-a.dist;}); //sort by distance from camera.
+        //verts.sort(function(a,b){return b.dist-a.dist;}); //sort by distance from camera.
         verts.forEach(drawVert);
             
         function drawVert(vert, line) {
@@ -678,54 +724,43 @@ window.onload = function() {
         
         function applyTransforms() {
             if (map[38]) {
-                //camera.z -= tStep;
                 camera.trans('z', tStep);
             }
             if (map[40]) {
-                //camera.z += tStep;
                 camera.trans('z', -tStep);
             }
             if (map[37]) {
-                //camera.x -= tStep;
                 camera.trans('x', -tStep);
             }
             if (map[39]) {
-                //camera.x += tStep;
                 camera.trans('x', tStep);
             }
             if (map[81]) {
-                //camera.y += tStep;
                 camera.trans('y', tStep);
             }
             if (map[69]) {
-                //camera.y -= tStep;
                 camera.trans('y', -tStep);
             }
             if (map[87]) {
-                //camera.xRot += rStep;
                 camera.setRot('x',rStep);
             }
             if (map[65]) {
-                //camera.yRot += rStep;
                 camera.setRot('y',rStep);
             }
             if (map[83]) {
-                //camera.xRot -= rStep;
                 camera.setRot('x',-rStep);
             }
             if (map[68]) {
-                //camera.yRot -= rStep;
                 camera.setRot('y',-rStep);
             }
         }
         
-        function getPressed() {
-            //var pressed = [];
+        function getPressed() { //return true if any of the keys are pressed
             for (var i in map) {
                 if (!map.hasOwnProperty(i))
                     continue;
                 if (map[i])
-                    return true;//pressed.push(i);
+                    return true;
             }
             return false;
         }
