@@ -1,23 +1,154 @@
 window.onload = function() {
     //Define Shape class. Shapes are a group of vertices
     function Shape(name) {
+        this.name;
         this.setName(name);
         this.vertices = [];
+        this.rotation = {x:0,y:0,z:0};
+        this.scale = {x:1, y:1, z:1};
+        this.history = new Stack(50);
         Shape.shapes.push(this);
-    }
+        
+        //create UI
+        this.div = document.createElement('div');
+        this.div.className = 'shapeUI';
+        shapesDiv.appendChild(this.div); //add to Div that holds all shapes UI elements.
+        
+        var nameInput = document.createElement('input'); //input for displaying and changing the name.
+        nameInput.type = 'text';
+        nameInput.value = this.name;
+        var _this = this;
+        nameInput.onchange = function() { //change name.
+            _this.setName(this.value);
+            this.value = _this.name;
+        }
+        this.div.appendChild(nameInput);
+        
+        var undo = document.createElement('button'); //undo last action.
+        undo.innerHTML = 'Undo';
+        undo.onclick = function(){_this.travHist('undo');};
+        this.div.appendChild(undo);
+        
+        var redo = document.createElement('button'); //redo change.
+        redo.innerHTML = 'Redo';
+        redo.onclick = function(){_this.travHist('redo');};
+        this.div.appendChild(redo);
+        
+        //transform inputs
+        var trans = document.createElement('span');
+        trans.innerHTML = 'Translation: ';
+        trans.className = 'transformSpan';
+        this.div.appendChild(trans);
+        
+        var rot = document.createElement('span');
+        rot.innerHTML = 'Rotation: ';
+        rot.className = 'transformSpan';
+        this.div.appendChild(rot);
+        
+        var scale = document.createElement('span');
+        scale.innerHTML = 'Scale: ';
+        scale.className = 'transformSpan';
+        this.div.appendChild(scale);
+        
+        function createInput(value, handler, parent) {
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'smallInput';
+            input.value = value;
+            input.onchange = handler;
+            parent.appendChild(input);
+            return input;
+        }
+        
+        this.transformUI = {
+            translate : {
+                x: createInput(0, function() {
+                    var dist = this.value - _this.getCenter()[0];
+                    Shape.translate(_this, 'x', dist);
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, trans),
+                y: createInput(0, function() {
+                    var dist = this.value - _this.getCenter()[1];
+                    Shape.translate(_this, 'y', dist);
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, trans),
+                z: createInput(0, function() {
+                    var dist = this.value - _this.getCenter()[2];
+                    Shape.translate(_this, 'z', dist);
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, trans)
+            },
+            rotate : {
+                x: createInput(0, function() {
+                    var diff = this.value - _this.rotation.x;
+                    Shape.rotate(_this, 'x', diff, _this.getCenter());
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, rot),
+                y: createInput(0, function() {
+                    var diff = this.value - _this.rotation.y;
+                    Shape.rotate(_this, 'y', diff, _this.getCenter());
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, rot),
+                z: createInput(0, function() {
+                    var diff = this.value - _this.rotation.z;
+                    Shape.rotate(_this, 'z', diff, _this.getCenter());
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, rot)
+            },
+            scale : {
+                x: createInput(1, function() {
+                    var factor = parseFloat(this.value);
+                    Shape.scale(_this, 'x', factor, _this.getCenter());
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, scale),
+                y: createInput(1, function() {
+                    var factor = parseFloat(this.value);
+                    Shape.scale(_this, 'y', factor, _this.getCenter());
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, scale),
+                z: createInput(1, function() {
+                    var factor = parseFloat(this.value);
+                    Shape.scale(_this, 'z', factor, _this.getCenter());
+                    _this.pushState();
+                    draw(camera, canvas);
+                }, scale)
+            }
+        };
+    };
+    Shape.prototype.updateUI = function() {
+        var center = this.getCenter();
+        var ui = this.transformUI;
+        ui.translate.x.value = center[0];
+        ui.translate.y.value = center[1];
+        ui.translate.z.value = center[2];
+        ui.rotate.x.value = this.rotation.x;
+        ui.rotate.y.value = this.rotation.y;
+        ui.rotate.z.value = this.rotation.z;
+        ui.scale.x.value = this.scale.x;
+        ui.scale.y.value = this.scale.y;
+        ui.scale.z.value = this.scale.z;
+    };
     Shape.prototype.addVert = function(vert) {
         if (vert.shape) {
             this.vertices.push(vert);
             vert.shape = this;
         }
-    }
+    };
     Shape.prototype.removeVert = function(vert) {
         var pos = this.vertices.indexOf(vert);
         if (pos !== -1) {
             this.vertices.splice(pos,1);
             vert.shape = undefined;
         }
-    }
+    };
     Shape.prototype.setName = function(name) {
         //check for duplicate name and add/change numeric suffix. Shape names should always be unique.
         var dupe;
@@ -30,7 +161,7 @@ window.onload = function() {
             }
         }else
             this.name = name;
-    }
+    };
     Shape.prototype.getCenter = function() {
         var x,y,z;
         x = this.vertices.reduce(function(a,b){return a+b.x;},0);
@@ -40,7 +171,7 @@ window.onload = function() {
         y /= this.vertices.length;
         z /= this.vertices.length;
         return [x,y,z];
-    }
+    };
     Shape.prototype.getVertAtCoord = function(x,y,z) { //get the vertex at a given point
         var result = this.vertices.find(function(v){
             var coords = v.getCoords()
@@ -51,10 +182,65 @@ window.onload = function() {
         });
         if (result == undefined) console.log('error'+[x,y,z]);
         return result;
-    }
+    };
+    Shape.prototype.pushState = function() { //save state (rotation and position)
+        this.history.push({center: this.getCenter(), rotation: this.rotation, scale: this.scale});
+    };
+    Shape.prototype.travHist = function(dir) { //traverse the shape history.
+        if (dir === 'undo') {
+            if (!this.history[this.history.cur -1]) return false; //no history
+            this.history.cur--; //go back in the history.
+        }else if (dir === 'redo') {
+            if (!this.history[this.history.cur +1]) return false; //no history
+            this.history.cur++; //go forward in the history.
+        }
+
+        var old = this.history[this.history.cur];
+        //var old = this.history.splice(-1,1);
+        var center = this.getCenter();
+        var xDiff = old.center[0] - center[0];
+        var yDiff = old.center[1] - center[1];
+        var zDiff = old.center[2] - center[2];
+        var xRot = old.rotation.x - this.rotation.x;
+        var yRot = old.rotation.y - this.rotation.y;
+        var zRot = old.rotation.z - this.rotation.z;
+        var xScale = old.scale.x / this.scale.x;
+        var yScale = old.scale.y / this.scale.y;
+        var zScale = old.scale.z / this.scale.z;
+        
+        //perform transformations
+        if (xDiff)
+            Shape.translate(this, 'x', xDiff);
+        if (yDiff)
+            Shape.translate(this, 'y', yDiff);
+        if (zDiff)
+            Shape.translate(this, 'z', zDiff);
+        if (xRot)
+            Shape.rotate(this, 'x', xRot, old.center);
+        if (yRot)
+            Shape.rotate(this, 'y', yRot, old.center);
+        if (zRot)
+            Shape.rotate(this, 'z', zRot, old.center);
+        if (xScale)
+            Shape.scale(this, 'x', xScale, old.center);
+        if (yScale)
+            Shape.scale(this, 'y', yScale, old.center);
+        if (zScale)
+            Shape.scale(this, 'z', zScale, old.center);
+        
+        this.updateUI() //update the UI values
+        draw(camera,canvas); //draw new frame
+    };
+    Shape.translate = function(shape, axis, dist) {
+        shape.vertices.forEach(function(x,i,a) {
+            a[i][axis] += dist; //move in global space.
+        });
+        return shape;
+    };
     Shape.rotate = function(shape, axis, deg, center) {
         if (!center)
             center = shape.getCenter();
+        
         var rad = Math.PI/180;
         for (var i=0; i<shape.vertices.length; i++) {
             var point = shape.vertices[i].getCoords();
@@ -69,41 +255,87 @@ window.onload = function() {
             switch(axis) {
                 case 'x' :
                     xAngle = Math.atan(yDiff/zDiff) || 0; //if there is no zDiff, we assign 0. Otherwise, we would get NaN.
+                    var xHyp = yDiff/Math.sin(xAngle);
                     if (xAngle != 0) {
-                        y += Math.sin(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - yDiff;
-                        z += Math.cos(deg*rad+xAngle)*(yDiff/Math.sin(xAngle)) - zDiff;
+                        y += Math.sin(deg*rad+xAngle)*xHyp - yDiff;
+                        z += Math.cos(deg*rad+xAngle)*xHyp - zDiff;
                     }else{ // if the angle is 0, we would end up dividing by 0 getting NaN. need a special case.
-                        y += Math.sin(deg*rad)* zDiff - yDiff;
-                        z += Math.cos(deg*rad)* zDiff - zDiff;
+                        if (zDiff != 0) { //use whichever hypotenuse length that is not 0.
+                            y += Math.sin(deg*rad)* zDiff - yDiff;
+                            z += Math.cos(deg*rad)* zDiff - zDiff;
+                        }else{
+                            y += Math.cos(deg*rad)* yDiff - yDiff;
+                            z += Math.sin(deg*rad)* yDiff - zDiff;
+                        }
                     }
                     break;
                 case 'y' :
                     yAngle = Math.atan(zDiff/xDiff) || 0;
                     if (yAngle != 0) {
-                        x += Math.cos(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - xDiff;
-                        z += Math.sin(deg*rad+yAngle)*(zDiff/Math.sin(yAngle)) - zDiff;
+                        var yHyp = zDiff/Math.sin(yAngle);
+                        x += Math.cos(deg*rad+yAngle)*yHyp - xDiff;
+                        z += Math.sin(deg*rad+yAngle)*yHyp - zDiff;
                     }else{
-                        x += Math.sin(deg*rad) * zDiff - xDiff;
-                        z += Math.cos(deg*rad) * zDiff - zDiff;
+                        if (zDiff != 0) { 
+                            x += Math.sin(deg*rad) * zDiff - xDiff;
+                            z += Math.cos(deg*rad) * zDiff - zDiff;
+                        }else{
+                            x += Math.cos(deg*rad) * xDiff - xDiff;
+                            z += Math.sin(deg*rad) * xDiff - zDiff;
+                        }
                     }
                     
                     break;
                 case 'z' :
                     zAngle = Math.atan(yDiff/xDiff) || 0;
+                    var zHyp = yDiff/Math.sin(zAngle);
                     if (zAngle != 0) {
-                        x += Math.sin((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) - xDiff;
-                        y -= Math.cos((deg+90)*rad+zAngle)*(yDiff/Math.sin(zAngle)) + yDiff;
+                        x += Math.sin((deg+90)*rad+zAngle)*zHyp - xDiff;
+                        y -= Math.cos((deg+90)*rad+zAngle)*zHyp + yDiff;
                     }else{
-                        x += Math.cos((deg)*rad)* xDiff - xDiff;
-                        y += Math.sin((deg)*rad)* xDiff - yDiff;
+                        if (xDiff != 0) {
+                            x += Math.cos((deg)*rad)* xDiff - xDiff;
+                            y += Math.sin((deg)*rad)* xDiff - yDiff;
+                        }else{
+                            x += Math.sin((deg)*rad)* yDiff - xDiff;
+                            y += Math.cos((deg)*rad)* yDiff - yDiff;
+                        }
                     }
             }
             shape.vertices[i].x += x;
             shape.vertices[i].y += y;
             shape.vertices[i].z += z;
         }
+        shape.rotation[axis] += deg;
         return shape;
-    }
+    };
+    Shape.scale = function (shape, axis, factor, center) {
+        if (factor == 0) return;
+        var verts = shape.vertices;
+        var a, f;
+        switch (axis) {
+            case 'x' :
+                a = 0;
+                f = factor / shape.scale.x;
+                break;
+            case 'y' :
+                a = 1;
+                f = factor / shape.scale.y;
+                break;
+            case 'z' :
+                a = 2;
+                f = factor / shape.scale.z;
+        }
+        
+        for (var i=0; i<verts.length; i++) {
+            var coord = verts[i].getCoords()[a];
+            var diff = coord - center[a];
+            diff = (diff*f) - diff; //get the distance to be moved.
+            verts[i][axis] += diff;
+        }
+        shape.scale[axis] = factor;
+        return shape;
+    };
     Shape.createPrimitive = function(type, name) { //create a primative of 'type'
         var shape = new Shape(name||type);
         
@@ -128,8 +360,8 @@ window.onload = function() {
                 
                 //create left face.
                 x = -width/2;
-                for (var z=-depth/2; z<=depth/2; z+=depth/(subZ+1)) {
-                    for (var y=-height/2; y<=height/2; y+=height/(subY+1)) {
+                for (var z=-depth/2; parseFloat(z.toFixed(5))<=parseFloat((depth/2).toFixed(5)); z+=depth/(subZ+1)) {
+                    for (var y=-height/2; parseFloat(y.toFixed(5))<=parseFloat((height/2).toFixed(5)); y+=height/(subY+1)) {
                         v = new Vertex(x,y,z, shape);
                         if (y > (-height/2)) {
                             v.connectTo(shape.vertices[shape.vertices.length-2]);
@@ -141,13 +373,13 @@ window.onload = function() {
                 }
                 //create main body.
                 for (var x=-width/2+width/(subX+1); x<width/2; x+=width/(subX+1)) {
-                    for (var y=-height/2; y<=height/2; y+=height/(subY+1)) {
+                    for (var y=-height/2; parseFloat(y.toFixed(5))<=parseFloat((height/2).toFixed(5)); y+=height/(subY+1)) {
                         v = new Vertex(x,y,-depth/2, shape);
                         v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,-depth/2));
-                        if (y !== -height/2)
+                        if (parseFloat(y.toFixed(5)) !== parseFloat((-height/2).toFixed(5)))
                             v.connectTo(shape.getVertAtCoord(x,y-height/(subY+1),-depth/2));
                         
-                        if (y === -height/2 || y === height/2) {
+                        if (parseFloat(y.toFixed(5)) === parseFloat((-height/2).toFixed(5)) || parseFloat(y.toFixed(5)) === parseFloat((height/2).toFixed(5))) {
                             for (var z=-depth/2+depth/(subZ+1); z<depth/2; z+=depth/(subZ+1)) {
                                 v = new Vertex(x,y,z, shape);
                                 v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,z));
@@ -156,16 +388,16 @@ window.onload = function() {
                         }
                         v = new Vertex(x,y,depth/2, shape);
                         v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,depth/2));
-                        if (y !== -height/2)
+                        if (parseFloat(y.toFixed(5)) !== parseFloat((-height/2).toFixed(5)))
                             v.connectTo(shape.getVertAtCoord(x,y-height/(subY+1),depth/2));
-                        if (y === -height/2 || y === height/2)
+                        if (parseFloat(y.toFixed(5)) === parseFloat((-height/2).toFixed(5)) || parseFloat(y.toFixed(5)) === parseFloat((height/2).toFixed(5)))
                             v.connectTo(shape.getVertAtCoord(x,y,depth/2-depth/(subZ+1)));
                     }
                 }
                 //create the right side.
                 x = width/2;
-                for (var z=-depth/2; z<=depth/2; z+=depth/(subZ+1)) {
-                    for (var y=-height/2; y<=height/2; y+=height/(subY+1)) {
+                for (var z=-depth/2; parseFloat(z.toFixed(5))<=parseFloat((depth/2).toFixed(5)); z+=depth/(subZ+1)) {
+                    for (var y=-height/2; parseFloat(y.toFixed(5))<=parseFloat((height/2).toFixed(5)); y+=height/(subY+1)) {
                         v = new Vertex(x,y,z, shape);
                         if (y > (-height/2)) {
                             v.connectTo(shape.vertices[shape.vertices.length-2]);
@@ -173,7 +405,7 @@ window.onload = function() {
                         if (z > -depth/2) {
                             v.connectTo(shape.vertices[shape.vertices.length-1 - (subY+2)]);
                         }
-                        if (y === -height/2 || y === height/2 || z === -depth/2 || z === depth/2)
+                        if (parseFloat(y.toFixed(5)) === parseFloat((-height/2).toFixed(5)) || parseFloat(y.toFixed(5)) === parseFloat((height/2).toFixed(5)) || parseFloat(z.toFixed(5)) === parseFloat((-depth/2).toFixed(5)) || parseFloat(z.toFixed(5)) === parseFloat((depth/2).toFixed(5)))
                             v.connectTo(shape.getVertAtCoord(x-width/(subX+1),y,z));
                     }
                 }
@@ -359,8 +591,9 @@ window.onload = function() {
                 if (rotZ)
                     Shape.rotate(shape,'z',rotZ,[xC,yC,zC]);
         }
+        //shape.updateUI(); //apply any transforms to the UI input values.
         return shape;
-    }
+    };
     Shape.shapes = []; //array of all shapes.
     //Define Vertex class
     function Vertex(x,y,z,shape) { //'shape' (optional) can be a Shape object or a shape's name string.
@@ -381,14 +614,14 @@ window.onload = function() {
     }
     Vertex.prototype.getCoords = function() {
         return [this.x,this.y,this.z];
-    }
+    };
     Vertex.prototype.connectTo = function(vert) {
         if (this.shape === vert.shape && this.connectedTo.indexOf(vert) === -1) {
             this.connectedTo.push(vert);
             vert.connectedTo.push(this);
         }
         return this;
-    }
+    };
     Vertex.prototype.disconnectFrom = function(vert) {
         var pos = this.connectedTo.indexOf(vert);
         var pos2 = vert.connectedTo.indexOf(this);
@@ -397,7 +630,7 @@ window.onload = function() {
             vert.connectedTo.splice(pos2,1);
         }
         return this;
-    }
+    };
     Vertex.prototype.delete = function() {
         var shape = this.shape;
         shape.removeVert(this);
@@ -406,7 +639,7 @@ window.onload = function() {
             this.connectedTo[i].disconnectFrom(this);
         }
         delete this;
-    }
+    };
     Vertex.prototype.setVisualCoords = function(vect, cam, camObj) { //vector coords, cam coords, camera object
         var yRot = camObj.yRot;
         var xRot = camObj.xRot;
@@ -484,7 +717,7 @@ window.onload = function() {
         var canY = yCoord/bounds[1]*(.5 * canvas.getAttribute('height'));
         //return the coordinates.
         this.visCoords = [canX, -canY]; //need to flip the Y coord for canvas.
-    }
+    };
     
     /*to find the point of intersection btwn a line and a plane, we first get the cartesian equation of the plane.
     to do this, we need 3 points that are in the plane, points A(-3,4,1), B(0,2,5), and C(3,6,-2). We find two vectors AB and AC by subtracting
@@ -542,10 +775,10 @@ window.onload = function() {
             side = Math.sqrt(Math.pow(xDiff,2)+Math.pow(zDiff,2));
         var distance = Math.sqrt(Math.pow(side,2)+Math.pow(yDiff,2));
         return distance;
-    }
+    };
     Camera.prototype.getCoords = function() {
         return [this.x, this.y, this.z];
-    }
+    };
     Camera.prototype.trans = function(axis, dist) {
         var rad = Math.PI/180;
         var xRot;
@@ -584,7 +817,7 @@ window.onload = function() {
         this.x += x;
         this.y += y;
         this.z += z;
-    }
+    };
     Camera.prototype.setRot = function(axis, deg) {
         if (axis === 'y') {
             this.yRot += deg;
@@ -601,10 +834,10 @@ window.onload = function() {
                 this.xRot += 360;
             }
         }
-    }
+    };
     Camera.prototype.getRot = function() {
         return [this.xRot, this.yRot, this.zRot];
-    }
+    };
     Camera.prototype.getVector = function() {
         var h = this.vectorLength;
         var y = Math.sin(-this.xRot*(Math.PI/180))*h;
@@ -613,7 +846,7 @@ window.onload = function() {
         var z = Math.cos(this.yRot*(Math.PI/180))*n;
         var vector = [0-x, 0-y, 0-z];
         return vector;
-    }
+    };
     Camera.prototype.updateBounds = function() { //updates the property that holds the size boundaries of the visual plane.
         var fov = this.fov;
         var len = this.vectorLength;
@@ -624,7 +857,7 @@ window.onload = function() {
         var height = width*(canHeight/canWidth); //use the canvas size to get width to height ratio.
         //set the visBounds property
         this.visBounds = [width, height];
-    }
+    };
     Camera.prototype.updateLR = function() {
         var yRot = this.yRot*(Math.PI/180);
         var x = Math.cos(yRot);
@@ -636,7 +869,8 @@ window.onload = function() {
         var left = [x+this.x,this.y,z+this.z];
         this.LR.left = left;
         this.LR.right = right;
-    }
+    };
+    
     //utility function for getting distance between two points.
     function dist(a,b) {
         var xDiff = a[0]-b[0]; 
@@ -696,8 +930,30 @@ window.onload = function() {
             }
         }
     }
+    function Stack(len) { //a simple stack class. extends array class
+        this.constructor = Stack;
+        Object.defineProperty(this, 'limit', { //non enumerable length limit
+            writable: false, enumerable: false, value: len, configurable: true
+        });
+        Object.defineProperty(this, 'cur', {
+            writable: true, enumerable: false, value: 0, configurable: true
+        });
+    }
+    Stack.prototype = Object.create(Array.prototype);
+    Stack.prototype.push = function(ele) { //modify the array.push method.
+        if (this.cur < this.length -1) {
+            this.splice(this.cur+1, this.length, ele); //if cursor is not at end of array, delete elements infront of cursor then add the new one.
+            this.cur++;
+        }else{
+            Array.prototype.push.call(this,ele);
+            this.cur = this.length-1;
+        }
+        if (this.length > this.limit) { //maintain stack size;
+            this.shift();
+        }
+    }
     
-    var camMove = (function() {
+    var camMove = (function() { //defines the keymap actions and returns the keydown and keyup handlers.
         var map = {
             38: false, //up arrow - move forward
             40: false, //down arrow - move back
@@ -808,12 +1064,16 @@ window.onload = function() {
         win.onunload = function() {
             if (primHid.value != '') {
                 var array = JSON.parse(primHid.value); //get the parameters
-                Shape.createPrimitive.apply(this,array); //create the primitive
+                var shape = Shape.createPrimitive.apply(this,array); //create the primitive
+                shape.pushState();
+                shape.updateUI();
                 primHid.value = ''; //reset the hidden input
                 draw(camera, canvas); //draw frame
             }
         }
     }
-
+    //shape UI
+    var shapesDiv = document.getElementById('shapesDiv');
+    
     draw(camera, canvas); //draw initial frame.
 }
