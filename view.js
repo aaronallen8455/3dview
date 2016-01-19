@@ -4,6 +4,8 @@ window.onload = function() {
         this.name;
         this.setName(name);
         this.vertices = [];
+        this.pivot = {x:0,y:0,z:0}; //point around which rotations and scales occur.
+        this.center = {x:0,y:0,z:0}; //the object center
         this.rotation = {x:0,y:0,z:0};
         this.scale = {x:1, y:1, z:1};
         this.history = new Stack(50);
@@ -13,6 +15,15 @@ window.onload = function() {
         this.div = document.createElement('div');
         this.div.className = 'shapeUI';
         shapesDiv.appendChild(this.div); //add to Div that holds all shapes UI elements.
+        //Selection handler
+        this.div.addEventListener('click', function() {
+            Shape.selected = _this;
+            _this.div.className = 'selected';
+            Shape.shapes.forEach(function(x) {
+                if (x !== _this)
+                    x.div.className = 'shapeUI';
+            });
+        });
         
         var nameInput = document.createElement('input'); //input for displaying and changing the name.
         nameInput.type = 'text';
@@ -23,16 +34,6 @@ window.onload = function() {
             this.value = _this.name;
         }
         this.div.appendChild(nameInput);
-        
-        var undo = document.createElement('button'); //undo last action.
-        undo.innerHTML = 'Undo';
-        undo.onclick = function(){_this.travHist('undo');};
-        this.div.appendChild(undo);
-        
-        var redo = document.createElement('button'); //redo change.
-        redo.innerHTML = 'Redo';
-        redo.onclick = function(){_this.travHist('redo');};
-        this.div.appendChild(redo);
         
         //transform inputs
         var trans = document.createElement('span');
@@ -50,6 +51,11 @@ window.onload = function() {
         scale.className = 'transformSpan';
         this.div.appendChild(scale);
         
+        var pivot = document.createElement('span');
+        pivot.innerHTML = 'Pivot: ';
+        pivot.className = 'transformSpan';
+        this.div.appendChild(pivot);
+        
         function createInput(value, handler, parent) {
             var input = document.createElement('input');
             input.type = 'text';
@@ -63,19 +69,19 @@ window.onload = function() {
         this.transformUI = {
             translate : {
                 x: createInput(0, function() {
-                    var dist = this.value - _this.getCenter()[0];
+                    var dist = this.value - _this.pivot.x;
                     Shape.translate(_this, 'x', dist);
                     _this.pushState();
                     draw(camera, canvas);
                 }, trans),
                 y: createInput(0, function() {
-                    var dist = this.value - _this.getCenter()[1];
+                    var dist = this.value - _this.pivot.y;
                     Shape.translate(_this, 'y', dist);
                     _this.pushState();
                     draw(camera, canvas);
                 }, trans),
                 z: createInput(0, function() {
-                    var dist = this.value - _this.getCenter()[2];
+                    var dist = this.value - _this.pivot.z;
                     Shape.translate(_this, 'z', dist);
                     _this.pushState();
                     draw(camera, canvas);
@@ -84,19 +90,19 @@ window.onload = function() {
             rotate : {
                 x: createInput(0, function() {
                     var diff = this.value - _this.rotation.x;
-                    Shape.rotate(_this, 'x', diff, _this.getCenter());
+                    Shape.rotate(_this, 'x', diff, [_this.pivot.x,_this.pivot.y,_this.pivot.z]);
                     _this.pushState();
                     draw(camera, canvas);
                 }, rot),
                 y: createInput(0, function() {
                     var diff = this.value - _this.rotation.y;
-                    Shape.rotate(_this, 'y', diff, _this.getCenter());
+                    Shape.rotate(_this, 'y', diff, [_this.pivot.x,_this.pivot.y,_this.pivot.z]);
                     _this.pushState();
                     draw(camera, canvas);
                 }, rot),
                 z: createInput(0, function() {
                     var diff = this.value - _this.rotation.z;
-                    Shape.rotate(_this, 'z', diff, _this.getCenter());
+                    Shape.rotate(_this, 'z', diff, [_this.pivot.x,_this.pivot.y,_this.pivot.z]);
                     _this.pushState();
                     draw(camera, canvas);
                 }, rot)
@@ -104,31 +110,70 @@ window.onload = function() {
             scale : {
                 x: createInput(1, function() {
                     var factor = parseFloat(this.value);
-                    Shape.scale(_this, 'x', factor, _this.getCenter());
+                    Shape.scale(_this, 'x', factor, [_this.pivot.x,_this.pivot.y,_this.pivot.z]);
                     _this.pushState();
                     draw(camera, canvas);
                 }, scale),
                 y: createInput(1, function() {
                     var factor = parseFloat(this.value);
-                    Shape.scale(_this, 'y', factor, _this.getCenter());
+                    Shape.scale(_this, 'y', factor, [_this.pivot.x,_this.pivot.y,_this.pivot.z]);
                     _this.pushState();
                     draw(camera, canvas);
                 }, scale),
                 z: createInput(1, function() {
                     var factor = parseFloat(this.value);
-                    Shape.scale(_this, 'z', factor, _this.getCenter());
+                    Shape.scale(_this, 'z', factor, [_this.pivot.x,_this.pivot.y,_this.pivot.z]);
                     _this.pushState();
                     draw(camera, canvas);
                 }, scale)
+            },
+            pivot : {
+                x: createInput(0, function() {
+                    _this.pivot.x = this.value;
+                    _this.freeze(true,true,false);
+                    _this.updateUI();
+                    _this.pushState();
+                }, pivot),
+                y: createInput(0, function() {
+                    _this.pivot.y = this.value;
+                    _this.freeze(true,true,false);
+                    _this.updateUI();
+                    _this.pushState();
+                }, pivot),
+                z: createInput(0, function() {
+                    _this.pivot.z = this.value;
+                    _this.freeze(true,true,false);
+                    _this.updateUI();
+                    _this.pushState();
+                }, pivot)
             }
         };
+        
+        var undo = document.createElement('button'); //undo last action.
+        undo.innerHTML = 'Undo';
+        undo.onclick = function(){_this.travHist('undo');};
+        this.div.appendChild(undo);
+        
+        var redo = document.createElement('button'); //redo change.
+        redo.innerHTML = 'Redo';
+        redo.onclick = function(){_this.travHist('redo');};
+        this.div.appendChild(redo);
+        
+        var del = document.createElement('button'); //delete the shape
+        del.innerHTML = 'Delete';
+        del.onclick = function() {
+            shapesDiv.removeChild(_this.div);
+            Shape.shapes.splice(Shape.shapes.indexOf(_this),1);
+            draw(camera,canvas);
+        };
+        this.div.appendChild(del);
     };
     Shape.prototype.updateUI = function() {
-        var center = this.getCenter();
+        //var center = this.getCenter();
         var ui = this.transformUI;
-        ui.translate.x.value = center[0];
-        ui.translate.y.value = center[1];
-        ui.translate.z.value = center[2];
+        ui.translate.x.value = this.center.x;
+        ui.translate.y.value = this.center.y;
+        ui.translate.z.value = this.center.z;
         ui.rotate.x.value = this.rotation.x;
         ui.rotate.y.value = this.rotation.y;
         ui.rotate.z.value = this.rotation.z;
@@ -154,14 +199,25 @@ window.onload = function() {
         var dupe;
         if (dupe = Shape.shapes.filter(function(x){return x.name === name;})[0]) {
             var pos
-            if (pos = dupe.name.search(/\d+$/)) {
-                this.setName(name.slice(0,pos) + (parseInt(name.slice(pos))+1));
+            if ((pos = dupe.name.search(/\d+$/)) > 0) { //position of number suffix
+                this.setName(name.slice(0,pos) + (parseInt(name.slice(pos))+1)); //add 1 to suffix and recurse
             }else{
-                this.setName(name + '2');
+                this.setName(name + '2'); //create number suffix if not already present, then recurse
             }
         }else
             this.name = name;
     };
+    Shape.prototype.freeze = function(rotation, scale, translation) {
+        if (rotation) {
+            this.rotation.x = this.rotation.y = this.rotation.z = 0;
+        }
+        if (scale) {
+            this.scale.x = this.scale.y = this.scale.z = 1;
+        }
+        if (translation) {
+            this.center.x = this.center.y = this.center.z = 0;
+        }
+    }
     Shape.prototype.getCenter = function() {
         var x,y,z;
         x = this.vertices.reduce(function(a,b){return a+b.x;},0);
@@ -184,7 +240,27 @@ window.onload = function() {
         return result;
     };
     Shape.prototype.pushState = function() { //save state (rotation and position)
-        this.history.push({center: this.getCenter(), rotation: this.rotation, scale: this.scale});
+        var rotation = {
+            x: this.rotation.x,
+            y: this.rotation.y,
+            z: this.rotation.z
+        };
+        var scale = {
+            x: this.scale.x,
+            y: this.scale.y,
+            z: this.scale.z
+        }
+        var center = {
+            x: this.center.x,
+            y: this.center.y,
+            z: this.center.z
+        }
+        var pivot = {
+            x: this.pivot.x,
+            y: this.pivot.y,
+            z: this.pivot.z
+        }
+        this.history.push({center: center, pivot: pivot, rotation: rotation, scale: scale});
     };
     Shape.prototype.travHist = function(dir) { //traverse the shape history.
         if (dir === 'undo') {
@@ -195,18 +271,20 @@ window.onload = function() {
             this.history.cur++; //go forward in the history.
         }
 
-        var old = this.history[this.history.cur];
-        //var old = this.history.splice(-1,1);
-        var center = this.getCenter();
-        var xDiff = old.center[0] - center[0];
-        var yDiff = old.center[1] - center[1];
-        var zDiff = old.center[2] - center[2];
+        var old = this.history[this.history.cur]; //prev or next history object
+        var center = this.pivot;
+        var xDiff = old.center.x - this.center.x;
+        var yDiff = old.center.y - this.center.y;
+        var zDiff = old.center.z - this.center.z;
         var xRot = old.rotation.x - this.rotation.x;
         var yRot = old.rotation.y - this.rotation.y;
         var zRot = old.rotation.z - this.rotation.z;
-        var xScale = old.scale.x / this.scale.x;
-        var yScale = old.scale.y / this.scale.y;
-        var zScale = old.scale.z / this.scale.z;
+        var xScale = !(old.scale.x === this.scale.x);
+        var yScale = !(old.scale.y === this.scale.y);
+        var zScale = !(old.scale.z === this.scale.z);
+        var xPiv = old.pivot.x - this.pivot.x;
+        var yPiv = old.pivot.y - this.pivot.y;
+        var zPiv = old.pivot.z - this.pivot.z;
         
         //perform transformations
         if (xDiff)
@@ -215,18 +293,25 @@ window.onload = function() {
             Shape.translate(this, 'y', yDiff);
         if (zDiff)
             Shape.translate(this, 'z', zDiff);
+        if (xPiv)
+            this.transformUI.pivot.x.value = this.pivot.x = old.pivot.x;
+        if (yPiv)
+            this.transformUI.pivot.y.value = this.pivot.y = old.pivot.y;
+        if (zPiv)
+            this.transformUI.pivot.z.value = this.pivot.z = old.pivot.z;
         if (xRot)
-            Shape.rotate(this, 'x', xRot, old.center);
+            Shape.rotate(this, 'x', xRot, [old.pivot.x, old.pivot.y, old.pivot.z]);
         if (yRot)
-            Shape.rotate(this, 'y', yRot, old.center);
+            Shape.rotate(this, 'y', yRot, [old.pivot.x, old.pivot.y, old.pivot.z]);
         if (zRot)
-            Shape.rotate(this, 'z', zRot, old.center);
+            Shape.rotate(this, 'z', zRot, [old.pivot.x, old.pivot.y, old.pivot.z]);
         if (xScale)
-            Shape.scale(this, 'x', xScale, old.center);
+            Shape.scale(this, 'x', old.scale.x, [old.pivot.x, old.pivot.y, old.pivot.z]);
         if (yScale)
-            Shape.scale(this, 'y', yScale, old.center);
+            Shape.scale(this, 'y', old.scale.y, [old.pivot.x, old.pivot.y, old.pivot.z]);
         if (zScale)
-            Shape.scale(this, 'z', zScale, old.center);
+            Shape.scale(this, 'z', old.scale.z, [old.pivot.x, old.pivot.y, old.pivot.z]);
+        
         
         this.updateUI() //update the UI values
         draw(camera,canvas); //draw new frame
@@ -235,13 +320,49 @@ window.onload = function() {
         shape.vertices.forEach(function(x,i,a) {
             a[i][axis] += dist; //move in global space.
         });
+        shape.pivot[axis] += dist;
+        shape.transformUI.pivot[axis].value = shape.pivot[axis];
+        shape.center[axis] += dist;
         return shape;
     };
-    Shape.rotate = function(shape, axis, deg, center) {
+    Shape.rotate = function(shape, axis, deg, center, global) {
+        //var shape = shape;
+        //var center = center;
+        if (!Array.isArray(center)) {
+            var center = [shape.center.x,shape.center.y,shape.center.z];
+        }
         if (!center)
-            center = shape.getCenter();
-        
+            var center = shape.getCenter();
         var rad = Math.PI/180;
+        //use rotation order where x is parented to y is parented to z. (z is the master axis)
+        if (!global) {
+            switch(axis) {
+                case 'x' : //must undo z then y rotations before applying z rotation. then reapply y then z.
+                    var yRot = shape.rotation.y;
+                    var zRot = shape.rotation.z;
+                    if (zRot !== 0)
+                        Shape.rotate(shape, 'z', -zRot, center, true);
+                    if (yRot !== 0)
+                        Shape.rotate(shape, 'y', -yRot, center, true);
+                    
+                    Shape.rotate(shape, 'x', deg, center, true);
+                    
+                    if (yRot !== 0)
+                        Shape.rotate(shape, 'y', yRot, center, true);
+                    if (zRot !== 0)
+                        Shape.rotate(shape, 'z', zRot, center, true);
+                    return shape;
+                case 'y' :
+                    var zRot = shape.rotation.z;
+                    if (zRot !== 0)
+                        Shape.rotate(shape, 'z', -zRot, center, true);
+                    Shape.rotate(shape, 'y', deg, center, true);
+                    if (zRot !== 0)
+                        Shape.rotate(shape, 'z', zRot, center, true);
+                    return shape;
+            }
+        }
+        
         for (var i=0; i<shape.vertices.length; i++) {
             var point = shape.vertices[i].getCoords();
             var xDiff,yDiff,zDiff,xAngle,yAngle,zAngle;
@@ -252,6 +373,7 @@ window.onload = function() {
             var x,y,z;
             x=y=z=0;
             //determine how much the coordinates are changed by the rotation
+            
             switch(axis) {
                 case 'x' :
                     xAngle = Math.atan(yDiff/zDiff) || 0; //if there is no zDiff, we assign 0. Otherwise, we would get NaN.
@@ -284,7 +406,6 @@ window.onload = function() {
                             z += Math.sin(deg*rad) * xDiff - zDiff;
                         }
                     }
-                    
                     break;
                 case 'z' :
                     zAngle = Math.atan(yDiff/xDiff) || 0;
@@ -305,12 +426,16 @@ window.onload = function() {
             shape.vertices[i].x += x;
             shape.vertices[i].y += y;
             shape.vertices[i].z += z;
-        }
+        }       
+        
         shape.rotation[axis] += deg;
         return shape;
     };
     Shape.scale = function (shape, axis, factor, center) {
         if (factor == 0) return;
+        if (!Array.isArray(center)) {
+            var center = [shape.center.x,shape.center.y,shape.center.z];
+        }
         var verts = shape.vertices;
         var a, f;
         switch (axis) {
@@ -410,14 +535,6 @@ window.onload = function() {
                     }
                 }
                 
-                //perform rotations
-                if (rotZ)
-                    Shape.rotate(shape, 'z', rotZ, [xC,yC,zC]);
-                if (rotX)
-                    Shape.rotate(shape, 'x', rotX, [xC,yC,zC]);
-                if (rotY)
-                    Shape.rotate(shape, 'y', rotY, [xC,yC,zC]);
-                
                 break;
                 
             case 'cone':
@@ -433,15 +550,15 @@ window.onload = function() {
                 var faces = arguments[i++] || 10;
                 var sub = arguments[i++] || 0;
                 
-                var pin = new Vertex(xC,yC+height/2,zC,shape); //the pinacle
+                var pin = new Vertex(0,height/2,0,shape); //the pinacle
                 var angle = 2*Math.PI/faces;
                 
                 for(var s=1; s<=sub+1; s++) {
                     for(var i=0; i<faces; i++) { //create the base
                         var x,z;
-                        x = Math.sin(angle*i)*(1/(sub+1)*(s)*radius) + xC;
-                        z = Math.cos(angle*i)*(1/(sub+1)*(s)*radius) + zC;
-                        var base = new Vertex(x,(yC + height/(sub+1)*(sub+1-s)-height/2),z,shape); //add vertex
+                        x = Math.sin(angle*i)*(1/(sub+1)*(s)*radius);
+                        z = Math.cos(angle*i)*(1/(sub+1)*(s)*radius);
+                        var base = new Vertex(x,(height/(sub+1)*(sub+1-s)-height/2),z,shape); //add vertex
                         if (s === 1) {
                             base.connectTo(pin);
                         }
@@ -457,13 +574,6 @@ window.onload = function() {
                     base.connectTo(shape.vertices[shape.vertices.length-faces]);
                 }
                 
-                //perform rotations
-                if (rotX)
-                    Shape.rotate(shape,'x',rotX,[xC,yC,zC]);
-                if (rotY)
-                    Shape.rotate(shape,'y',rotY,[xC,yC,zC]);
-                if (rotZ)
-                    Shape.rotate(shape,'z',rotZ,[xC,yC,zC]);
                 break;
                 
             case 'cylinder':
@@ -484,9 +594,9 @@ window.onload = function() {
                 for(var s=1; s<=sub+2; s++) {
                     for(var i=0; i<faces; i++) {
                         var x,z;
-                        x = Math.sin(angle*i)*radius + xC;
-                        z = Math.cos(angle*i)*radius + zC;
-                        var base = new Vertex(x,(yC + height/(sub+1)*(sub+2-s)-height/2),z,shape); //add vertex
+                        x = Math.sin(angle*i)*radius;
+                        z = Math.cos(angle*i)*radius;
+                        var base = new Vertex(x,(height/(sub+1)*(sub+2-s)-height/2),z,shape); //add vertex
                         if (s>1) {
                             base.connectTo(shape.vertices[shape.vertices.length-faces-1]);
                         }
@@ -496,13 +606,6 @@ window.onload = function() {
                     }
                     base.connectTo(shape.vertices[shape.vertices.length-faces]);
                 }
-                //perform rotations
-                if (rotX)
-                    Shape.rotate(shape,'x',rotX,[xC,yC,zC]);
-                if (rotY)
-                    Shape.rotate(shape,'y',rotY,[xC,yC,zC]);
-                if (rotZ)
-                    Shape.rotate(shape,'z',rotZ,[xC,yC,zC]);
                 
                 break;
                 
@@ -518,17 +621,17 @@ window.onload = function() {
                 var faces = arguments[i++] || 10;
                 var sub = arguments[i++] || 10;
                 
-                var top = new Vertex(xC,radius+yC,zC, shape);
-                var bottom = new Vertex(xC,-radius+yC,zC, shape);
+                var top = new Vertex(0,radius,0, shape);
+                var bottom = new Vertex(0,-radius,0, shape);
                 var angle = 2*Math.PI/faces;
                 var a = Math.PI/(sub+1); //the angle for each sub level.
                 var x,y,z,r,v
                 for(var s=1; s<sub+1; s++) {
-                    y = Math.cos(a*s)*radius + yC; //get the y value for each layer
+                    y = Math.cos(a*s)*radius; //get the y value for each layer
                     r = Math.sin(a*s)*radius; //get the radius for each layer
                     for (var i=0; i<faces; i++) {
-                        x = Math.sin(angle*i)*r + xC;
-                        z = Math.cos(angle*i)*r + zC;
+                        x = Math.sin(angle*i)*r;
+                        z = Math.cos(angle*i)*r;
                         v = new Vertex(x,y,z, shape);
                         if (s>1) {
                             v.connectTo(shape.vertices[shape.vertices.length-faces-1]);
@@ -545,13 +648,6 @@ window.onload = function() {
                     }
                     v.connectTo(shape.vertices[shape.vertices.length-faces]);
                 }
-                //perform rotations
-                if (rotX)
-                    Shape.rotate(shape,'x',rotX,[xC,yC,zC]);
-                if (rotY)
-                    Shape.rotate(shape,'y',rotY,[xC,yC,zC]);
-                if (rotZ)
-                    Shape.rotate(shape,'z',rotZ,[xC,yC,zC]);
                 
                 break;
             case 'plane':
@@ -574,7 +670,7 @@ window.onload = function() {
                     x = -width/2 + i*segX;
                     for (var t=0; t<=subZ+1; t++) {
                         z = -depth/2 + t*segZ;
-                        v = new Vertex(x+xC,yC,z+zC, shape);
+                        v = new Vertex(x,0,z, shape);
                         if (t>0) {
                             v.connectTo(shape.vertices[t-1+(subZ+2)*i]);
                         }
@@ -583,18 +679,27 @@ window.onload = function() {
                         }
                     }
                 }
-                //perform rotations
-                if (rotX)
-                    Shape.rotate(shape,'x',rotX,[xC,yC,zC]);
-                if (rotY)
-                    Shape.rotate(shape,'y',rotY,[xC,yC,zC]);
-                if (rotZ)
-                    Shape.rotate(shape,'z',rotZ,[xC,yC,zC]);
         }
+        //translate
+        if (xC)
+            Shape.translate(shape, 'x', xC);
+        if (yC)
+            Shape.translate(shape, 'y', yC);
+        if (zC)
+            Shape.translate(shape, 'z', zC);
+        //perform rotations
+        if (rotX)
+            Shape.rotate(shape, 'x', rotX, [xC,yC,zC]);
+        if (rotY)
+            Shape.rotate(shape, 'y', rotY, [xC,yC,zC]);
+        if (rotZ)
+            Shape.rotate(shape, 'z', rotZ, [xC,yC,zC]);
+        
         //shape.updateUI(); //apply any transforms to the UI input values.
         return shape;
     };
     Shape.shapes = []; //array of all shapes.
+    Shape.selected = null; //holds the currently selected shape.
     //Define Vertex class
     function Vertex(x,y,z,shape) { //'shape' (optional) can be a Shape object or a shape's name string.
         this.x = x;
@@ -659,6 +764,12 @@ window.onload = function() {
         var cY = cam[1];
         var cZ = cam[2];
         
+        var xRem = Math.abs(xRot%360); //get base camera x rotation
+        if (xRem > 90 && xRem < 270) { //if camera is upside down, we invert the Z and X coords of vector. b/c trig funcs used to find it only return positive.
+            vZ = -vZ;
+            vX = -vX;
+        }
+        
         //find the D constant of the scalar equation for the visual plane.
         var d = vX*(vX+camObj.x)+vY*(vY+camObj.y)+vZ*(vZ+camObj.z);
         
@@ -691,7 +802,10 @@ window.onload = function() {
         var oY = vY+camObj.y;
         var oZ = coord[2];
         
-        var ySign = oY<coord[1]?1:-1; //get the sign of the Y coordinate. Bugs out if camera is moving over and looking down at object.
+        if (xRem < 90 || xRem > 270) { //if camera is not upside down.
+            var ySign = oY<coord[1]?1:-1; //get the sign of the Y coordinate.
+        }else var ySign = oY<coord[1]?-1:1; //camera is upside down, flip Y coefficient.
+        
         var xSign;
         
         if (dist(coord, camObj.LR.left) < dist(coord, camObj.LR.right))
@@ -888,8 +1002,9 @@ window.onload = function() {
         canvas.setAttribute('width', canvas.getAttribute('width')); //clear the canvas
         var ctx = canvas.getContext('2d');
         ctx.translate(canvas.getAttribute('width')/2,canvas.getAttribute('height')/2);
-        ctx.fillStyle = 'yellow';
+        ctx.fillStyle = '#AEFF00';
         ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.2;
         var vect = camera.getVector();
         var camCoords = camera.getCoords();
         camera.updateLR();
@@ -902,11 +1017,11 @@ window.onload = function() {
                     verts.push(a[i]);
             });
         }
-        
+        ctx.beginPath();
         //verts.sort(function(a,b){return b.dist-a.dist;}); //sort by distance from camera.
         verts.forEach(drawVert);
-            
-        function drawVert(vert, line) {
+        ctx.stroke();
+        function drawVert(vert) {
             if (vert === null) return;
             var index = verts.indexOf(vert);
             
@@ -919,15 +1034,15 @@ window.onload = function() {
             
             for(var t =0; t<vert.connectedTo.length; t++) {
                 if (verts.indexOf(vert.connectedTo[t]) === -1) continue;
-                ctx.beginPath();
+                
                 ctx.moveTo(coords[0],coords[1]);
                 var to = vert.connectedTo[t].visCoords;
                 if (to === null) return;
                 ctx.lineTo(to[0],to[1]);
-                ctx.closePath();
-                ctx.stroke();
-                verts[index] = null;
+                //ctx.closePath();
             }
+            verts[index] = null;
+            
         }
     }
     function Stack(len) { //a simple stack class. extends array class
@@ -969,6 +1084,7 @@ window.onload = function() {
         var acting = false;
         var tStep = .25;
         var rStep = .5;
+        var shapeTrans = false;
         
         function action() {
             if (acting) {
@@ -979,35 +1095,69 @@ window.onload = function() {
         }
         
         function applyTransforms() {
-            if (map[38]) {
-                camera.trans('z', tStep);
-            }
-            if (map[40]) {
-                camera.trans('z', -tStep);
-            }
-            if (map[37]) {
-                camera.trans('x', -tStep);
-            }
-            if (map[39]) {
-                camera.trans('x', tStep);
-            }
-            if (map[81]) {
-                camera.trans('y', tStep);
-            }
-            if (map[69]) {
-                camera.trans('y', -tStep);
-            }
-            if (map[87]) {
-                camera.setRot('x',rStep);
-            }
-            if (map[65]) {
-                camera.setRot('y',rStep);
-            }
-            if (map[83]) {
-                camera.setRot('x',-rStep);
-            }
-            if (map[68]) {
-                camera.setRot('y',-rStep);
+            if (!shapeTrans) {
+                if (map[38]) {
+                    camera.trans('z', tStep);
+                }
+                if (map[40]) {
+                    camera.trans('z', -tStep);
+                }
+                if (map[37]) {
+                    camera.trans('x', -tStep);
+                }
+                if (map[39]) {
+                    camera.trans('x', tStep);
+                }
+                if (map[81]) {
+                    camera.trans('y', tStep);
+                }
+                if (map[69]) {
+                    camera.trans('y', -tStep);
+                }
+                if (map[87]) {
+                    camera.setRot('x',rStep);
+                }
+                if (map[65]) {
+                    camera.setRot('y',rStep);
+                }
+                if (map[83]) {
+                    camera.setRot('x',-rStep);
+                }
+                if (map[68]) {
+                    camera.setRot('y',-rStep);
+                }
+            }else{
+                if (map[38]) {
+                    Shape.translate(Shape.selected, 'z', tStep);
+                }
+                if (map[40]) {
+                    Shape.translate(Shape.selected, 'z', -tStep);
+                }
+                if (map[37]) {
+                    Shape.translate(Shape.selected, 'x', -tStep);
+                }
+                if (map[39]) {
+                    Shape.translate(Shape.selected, 'x', tStep);
+                }
+                if (map[81]) {
+                    Shape.translate(Shape.selected, 'y', tStep);
+                }
+                if (map[69]) {
+                    Shape.translate(Shape.selected, 'y', -tStep);
+                }
+                if (map[87]) {
+                    Shape.rotate(Shape.selected, 'x', rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
+                }
+                if (map[65]) {
+                    Shape.rotate(Shape.selected, 'y', rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
+                }
+                if (map[83]) {
+                    Shape.rotate(Shape.selected, 'x', -rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
+                }
+                if (map[68]) {
+                    Shape.rotate(Shape.selected, 'y', -rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
+                }
+                Shape.selected.updateUI();
             }
         }
         
@@ -1026,6 +1176,11 @@ window.onload = function() {
                 map[e.keyCode] = true;
                 if (acting) return;
                 acting = true;
+                if (e.shiftKey) {
+                    if (Shape.selected)
+                        shapeTrans = true;
+                }
+                else shapeTrans = false;
                 action();
             }
         }, function(e) {
