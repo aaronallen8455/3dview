@@ -260,7 +260,9 @@ window.onload = function() {
             y: this.pivot.y,
             z: this.pivot.z
         }
-        this.history.push({center: center, pivot: pivot, rotation: rotation, scale: scale});
+        //if there was a change, create history node
+        if (JSON.stringify(this.history[this.history.cur]) !== JSON.stringify({center: center, pivot: pivot, rotation: rotation, scale: scale}))
+            this.history.push({center: center, pivot: pivot, rotation: rotation, scale: scale});
     };
     Shape.prototype.travHist = function(dir) { //traverse the shape history.
         if (dir === 'undo') {
@@ -947,6 +949,9 @@ window.onload = function() {
             }else if (this.xRot < -180) {
                 this.xRot += 360;
             }
+            //don't allow camera to look completely up/down
+            if (this.xRot === 90 || this.xRot === -90)
+                this.xRot += deg/4;
         }
     };
     Camera.prototype.getRot = function() {
@@ -1079,7 +1084,9 @@ window.onload = function() {
             87: false, //W - look up
             65: false, //A - look left
             83: false, //S - look down
-            68: false //D - look right
+            68: false, //D - look right
+            90: false, //Z - rotate Z neg
+            88: false //X - rotate Z pos
         }
         var acting = false;
         var tStep = .25;
@@ -1151,11 +1158,17 @@ window.onload = function() {
                 if (map[65]) {
                     Shape.rotate(Shape.selected, 'y', rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
                 }
+                if (map[88]) {
+                    Shape.rotate(Shape.selected, 'z', rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
+                }
                 if (map[83]) {
                     Shape.rotate(Shape.selected, 'x', -rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
                 }
                 if (map[68]) {
                     Shape.rotate(Shape.selected, 'y', -rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
+                }
+                if (map[90]) {
+                    Shape.rotate(Shape.selected, 'z', -rStep, [Shape.selected.pivot.x,Shape.selected.pivot.y,Shape.selected.pivot.z]);
                 }
                 Shape.selected.updateUI();
             }
@@ -1189,7 +1202,10 @@ window.onload = function() {
                 map[e.keyCode] = false;
                 var pressed = getPressed();
                 if (getPressed() === false)
-                    acting = false;
+                    acting = false; 
+            }
+            if (e.keyCode === 16 && Shape.selected) {
+                Shape.selected.pushState(); //push history on shift key up
             }
         }];
     })();
