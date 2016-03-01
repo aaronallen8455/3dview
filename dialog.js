@@ -141,6 +141,9 @@ window.onload = function() {
             break;
         case 'plane' :
             p = ['width','depth','subX','subZ'];
+            break;
+        case 'dodecahedron':
+            p = ['radius'];
     }
     
     for (var i = 0; i<p.length; i++) {

@@ -652,6 +652,52 @@ window.onload = function() {
                 }
                 
                 break;
+                
+            case 'dodecahedron':
+                var i = 2;
+                var xC = arguments[i++] || 0;
+                var yC = arguments[i++] || 0;
+                var zC = arguments[i++] || 0;
+                var rotX = arguments[i++] || 0;
+                var rotY = arguments[i++] || 0;
+                var rotZ = arguments[i++] || 0;
+                var seg = arguments[i] || 5;
+                
+                
+                var h = (1+Math.sqrt(5))/2; //inverse of the golden ratio
+                var a = 1 / Math.sqrt(3);
+                var b = a / h;
+                var c = a * h;
+                var v1, v2, v3, v4;
+                var d;
+                //create the verts
+                for (var xCoe=-1; xCoe<2; xCoe+=2) {
+                    for (var yCoe=-1; yCoe<2; yCoe+=2) {
+                        var v3 = new Vertex(xCoe * b * seg, 0, yCoe * c * seg, shape);
+                        var v1 = new Vertex(0, xCoe * c * seg, yCoe * b * seg, shape);
+                        var v2 = new Vertex(xCoe * c * seg, yCoe * b * seg, 0, shape);
+                        
+                        for (var zCoe=-1; zCoe<2; zCoe+=2) {
+                            //eight vers of the original cube
+                            var v4 = new Vertex(xCoe * a * seg, yCoe * a * seg, zCoe * a * seg, shape);
+                            if (!d) d = dist(v2.getCoords(), v4.getCoords()).toFixed(5);
+                        }
+                    }
+                }
+                //connect all vertices that have 'd' distance between them.
+                for (var x=0; x<20; x++) {
+                    var xv = shape.vertices[x];
+                    for (var y=0; y<20; y++) {
+                        if (y === x) continue;
+                        var yv = shape.vertices[y];
+                        if (dist(xv.getCoords(), yv.getCoords()).toFixed(5) === d && xv.connectedTo.indexOf(yv) === -1) {
+                            xv.connectTo(yv);
+                        }
+                    }
+                }
+                
+                break;
+                
             case 'plane':
                 var i = 2;
                 var xC = arguments[i++] || 0;
@@ -1245,6 +1291,6 @@ window.onload = function() {
     }
     //shape UI
     var shapesDiv = document.getElementById('shapesDiv');
-    
+        
     draw(camera, canvas); //draw initial frame.
 }
